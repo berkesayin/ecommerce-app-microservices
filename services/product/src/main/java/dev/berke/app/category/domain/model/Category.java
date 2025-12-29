@@ -1,5 +1,6 @@
-package dev.berke.app.product.domain.model;
+package dev.berke.app.category.domain.model;
 
+import dev.berke.app.product.domain.model.Product;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

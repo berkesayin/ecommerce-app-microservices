@@ -1,5 +1,6 @@
 package dev.berke.app.product.domain.model;
 
+import dev.berke.app.category.domain.model.Category;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -54,8 +55,9 @@ public class Product {
     @Column(name = "created_on", nullable = false, updatable = false)
     private Instant createdOn;
 
+    @Builder.Default
     @Column(name = "status")
-    private Boolean status;
+    private Boolean status = false;
 
     @ManyToOne(optional = false) // a product must have a category
     @JoinColumn(
@@ -70,5 +72,13 @@ public class Product {
         if (createdOn == null) {
             createdOn = Instant.now();
         }
+
+        if (status == null) {
+            status = false;
+        }
+    }
+
+    public boolean isActive() {
+        return Boolean.TRUE.equals(this.status);
     }
 }

@@ -19,8 +19,8 @@ spring:
           json:
             type:
               mapping: >
-                productPublished:dev.berke.app.events.ProductPublishedEvent,
-                productUnpublished:dev.berke.app.events.ProductUnpublishedEvent
+                productPublished:dev.berke.app.product.domain.event.ProductPublishedEvent,
+                productUnpublished:dev.berke.app.product.domain.event.ProductUnpublishedEvent
 app:
   kafka:
     topics:

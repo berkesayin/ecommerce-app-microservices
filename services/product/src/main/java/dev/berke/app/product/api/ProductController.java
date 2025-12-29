@@ -1,6 +1,6 @@
 package dev.berke.app.product.api;
 
-import dev.berke.app.product.api.dto.ProductRequest;
+import dev.berke.app.product.api.dto.ProductCreateRequest;
 import dev.berke.app.product.api.dto.ProductResponse;
 import dev.berke.app.product.api.dto.ProductStatusUpdateRequest;
 import dev.berke.app.product.application.ProductService;
@@ -40,9 +40,9 @@ public class ProductController {
     @PostMapping
     @PreAuthorize("hasRole('BACKOFFICE')")
     public ResponseEntity<ProductResponse> createProduct(
-            @RequestBody @Valid ProductRequest productRequest
+            @RequestBody @Valid ProductCreateRequest productCreateRequest
     ) {
-        return ResponseEntity.ok(productService.createProduct(productRequest));
+        return ResponseEntity.ok(productService.createProduct(productCreateRequest));
     }
 
     @PatchMapping("/{productId}/status")

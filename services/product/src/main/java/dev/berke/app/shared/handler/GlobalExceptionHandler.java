@@ -1,6 +1,9 @@
 package dev.berke.app.shared.handler;
 
-import dev.berke.app.shared.exception.BasketNotFoundException;
+import dev.berke.app.shared.exception.CategoryNotFoundException;
+import dev.berke.app.shared.exception.ProductAlreadyExistsException;
+import dev.berke.app.shared.exception.ProductNotFoundException;
+import org.apache.kafka.common.errors.InvalidRequestException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -21,19 +24,43 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    // 1. basket not found
-    @ExceptionHandler(BasketNotFoundException.class)
-    ProblemDetail handleBasketNotFoundException(BasketNotFoundException ex) {
+    // 1. resource not found (basket, category)
+    @ExceptionHandler({ProductNotFoundException.class, CategoryNotFoundException.class})
+    ProblemDetail handleResourceNotFoundException(RuntimeException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND, ex.getMessage());
 
-        problemDetail.setTitle("Basket Not Found");
+        problemDetail.setTitle("Resource Not Found");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;
     }
 
-    // 2. unexpected runtime exceptions
+    // 2. product exists
+    @ExceptionHandler(ProductAlreadyExistsException.class)
+    ProblemDetail handleProductAlreadyExistsException(ProductAlreadyExistsException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, ex.getMessage());
+
+        problemDetail.setTitle("Product Already Exists");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    // 3. invalid request
+    @ExceptionHandler(InvalidRequestException.class)
+    ProblemDetail handleInvalidRequestException(InvalidRequestException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, ex.getMessage());
+
+        problemDetail.setTitle("Invalid Request");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    // 4. unexpected errors
     @ExceptionHandler(Exception.class)
     ProblemDetail handleGlobalException(Exception ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
@@ -45,7 +72,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
-    // 3. validation errors (@Valid)
+    // 5. validation errors (@Valid)
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex,
@@ -69,7 +96,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return createResponseEntity(problemDetail, headers, status, request);
     }
 
-    // 4. json parsing errors
+    // 6. json parsing errors
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex,
