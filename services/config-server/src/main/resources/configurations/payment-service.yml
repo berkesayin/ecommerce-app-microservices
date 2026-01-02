@@ -19,6 +19,12 @@ spring:
           json:
             type:
               mapping: paymentReceived:dev.berke.app.payment.domain.event.PaymentReceivedEvent
+logging:
+  level:
+    root: INFO
+    dev.berke.app.payment: ${APP_LOG_LEVEL:INFO}
+server:
+  port: 8060
 iyzipay:
   api:
     key: ${IYZIPAY_API_KEY}
@@ -26,5 +32,3 @@ iyzipay:
     key: ${IYZIPAY_SECRET_KEY}
   base:
     url: https://sandbox-api.iyzipay.com
-server:
-  port: 8060

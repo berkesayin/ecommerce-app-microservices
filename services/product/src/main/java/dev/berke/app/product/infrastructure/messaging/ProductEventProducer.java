@@ -3,16 +3,14 @@ package dev.berke.app.product.infrastructure.messaging;
 import dev.berke.app.product.domain.event.ProductPublishedEvent;
 import dev.berke.app.product.domain.event.ProductUnpublishedEvent;
 import dev.berke.app.product.domain.model.Product;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class ProductEventProducer {
-
-    private static final Logger log = LoggerFactory.getLogger(ProductEventProducer.class);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final String productEventsTopic;
@@ -27,6 +25,7 @@ public class ProductEventProducer {
 
     public void sendProductPublishedEvent(Product product) {
         log.info("Preparing to send ProductPublishedEvent for product ID: {}", product.getProductId());
+
         try {
             ProductPublishedEvent event = new ProductPublishedEvent(
                     product.getProductId(),
@@ -49,9 +48,11 @@ public class ProductEventProducer {
 
     public void sendProductUnpublishedEvent(Integer productId) {
         log.info("Preparing to send ProductUnpublishedEvent for product ID: {}", productId);
+
         try {
             ProductUnpublishedEvent event = new ProductUnpublishedEvent(productId);
             kafkaTemplate.send(productEventsTopic, String.valueOf(event.productId()), event);
+
             log.info("Sent ProductUnpublishedEvent for product ID: {}", productId);
         } catch (Exception e) {
             log.error("Failed to send ProductUnpublishedEvent for product ID: {}", productId, e);

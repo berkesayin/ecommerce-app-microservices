@@ -9,8 +9,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -24,14 +23,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class JwtUtils {
 
     // generate jwt token
     // get username from jwt
     // validate a jwt
     // get remaining time from token
-
-    private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
 
     @Value("${token.app.jwtSecret}")
     private String jwtSecret;
@@ -79,15 +77,15 @@ public class JwtUtils {
             Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parse(authToken);
             return true;
         } catch (MalformedJwtException e) {
-            logger.error("Invalid JWT token: {}", e.getMessage());
+            log.error("Invalid JWT token: {}", e.getMessage());
         } catch (ExpiredJwtException e) {
-            logger.error("JWT token is expired: {}", e.getMessage());
+            log.error("JWT token is expired: {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
-            logger.error("JWT token is unsupported: {}", e.getMessage());
+            log.error("JWT token is unsupported: {}", e.getMessage());
         } catch (IllegalArgumentException e) {
-            logger.error("JWT claims string is empty: {}", e.getMessage());
+            log.error("JWT claims string is empty: {}", e.getMessage());
         } catch (io.jsonwebtoken.security.SignatureException e) {
-            logger.error("JWT signature validation failed: {}", e.getMessage());
+            log.error("JWT signature validation failed: {}", e.getMessage());
         }
         return false;
     }
@@ -106,7 +104,7 @@ public class JwtUtils {
             long remaining = expirationDate.getTime() - System.currentTimeMillis();
             return Math.max(0, remaining); // if already expired
         } catch (Exception e) {
-            logger.warn("Could not get expiration from token: {}", e.getMessage());
+            log.warn("Could not get expiration from token: {}", e.getMessage());
             return 0;
         }
     }
@@ -126,7 +124,7 @@ public class JwtUtils {
             }
             return null;
         } catch (Exception e) {
-            logger.error("Error getting claim '{}' from token: {}", claimName, e.getMessage());
+            log.error("Error getting claim '{}' from token: {}", claimName, e.getMessage());
             return null;
         }
     }
@@ -139,11 +137,9 @@ public class JwtUtils {
                     .parseClaimsJws(token)
                     .getBody();
         } catch (Exception e) {
-            logger.error("Error getting claims from token: {}", e.getMessage());
+            log.error("Error getting claims from token: {}", e.getMessage());
             return null;
         }
     }
-
-
 
 }

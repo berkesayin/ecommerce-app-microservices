@@ -15,8 +15,7 @@ import dev.berke.app.security.jwt.JwtUtils;
 import dev.berke.app.security.service.UserDetailsImpl;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -36,6 +35,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final ConcurrentHashMap<String, Boolean> tokenBlacklist = new ConcurrentHashMap<>();
@@ -47,7 +47,6 @@ public class AuthService {
     private final CustomerClient customerClient;
     private final RedisTemplate<String, String> redisTemplate;
     private static final String TOKEN_BLACKLIST_PREFIX = "blacklist:token:";
-    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     public SignInResponse getToken(SignInRequest signInRequest) {
         Authentication authentication = authenticationManager.authenticate(
@@ -168,7 +167,7 @@ public class AuthService {
         long remainingMillis = jwtUtils.getRemainingValidityTimeFromToken(token);
 
         if (remainingMillis <= 0) {
-            logger.info("Token {} is already expired.", token);
+            log.info("Token {} is already expired.", token);
             return;
         }
 
@@ -179,9 +178,9 @@ public class AuthService {
                     "blacklisted",
                     timeoutDuration
             );
-            logger.info("Token blacklisted with TTL: {} ms", remainingMillis);
+            log.info("Token blacklisted with TTL: {} ms", remainingMillis);
         } catch (Exception e) {
-            logger.error("Could not blacklist token in Redis: {}", e.getMessage(), e);
+            log.error("Could not blacklist token in Redis: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to blacklist token due to Redis error.", e);
         }
     }
@@ -193,7 +192,7 @@ public class AuthService {
         try {
             return Boolean.TRUE.equals(redisTemplate.hasKey(TOKEN_BLACKLIST_PREFIX + token));
         } catch (Exception e) {
-            logger.error("Could not check token blacklist status in Redis: {}", e.getMessage(), e);
+            log.error("Could not check token blacklist status in Redis: {}", e.getMessage(), e);
             return false;
         }
     }

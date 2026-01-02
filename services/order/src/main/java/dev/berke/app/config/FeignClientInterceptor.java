@@ -3,17 +3,15 @@ package dev.berke.app.config;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
+@Slf4j
 public class FeignClientInterceptor implements RequestInterceptor {
-
-    private static final Logger logger = LoggerFactory.getLogger(FeignClientInterceptor.class);
 
     // headers to send
     private static final String HEADER_CUSTOMER_ID = "X-User-CustomerId";
@@ -50,7 +48,7 @@ public class FeignClientInterceptor implements RequestInterceptor {
                 template.header(HEADER_EMAIL, email);
             }
 
-            logger.info("Sent headers for Feign Call to {}: Auth={}, CustomerId={}",
+            log.info("Sent headers for Feign Call to {}: Auth={}, CustomerId={}",
                     template.feignTarget().url() + template.url(),
                     (authorizationHeader != null ? "auth header exists" : "does not exist"),
                     customerId);

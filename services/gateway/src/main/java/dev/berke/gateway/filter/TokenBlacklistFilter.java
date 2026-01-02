@@ -20,7 +20,6 @@ import org.springframework.core.io.buffer.DataBuffer; // custom response body
 
 import java.nio.charset.StandardCharsets;
 
-
 @Component
 public class TokenBlacklistFilter implements GlobalFilter, Ordered {
 

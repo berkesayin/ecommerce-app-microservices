@@ -1,4 +1,4 @@
-package dev.berke.app.shared.constants;
+package dev.berke.app.shared.constant;
 
 public class CustomerConstants {
 

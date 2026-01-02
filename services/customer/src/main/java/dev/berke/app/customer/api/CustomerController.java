@@ -35,8 +35,9 @@ public class CustomerController {
     public ResponseEntity<CustomerCreateResponse> createCustomer(
             @RequestBody @Valid CustomerDataRequest customerDataRequest
     ) {
-        CustomerCreateResponse response = customerService.createCustomer(customerDataRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(customerService.createCustomer(customerDataRequest));
     }
 
     @PutMapping("/me")
@@ -73,8 +74,8 @@ public class CustomerController {
             @AuthenticationPrincipal String customerIdPrincipal,
             @RequestBody @Valid AddressRequest addressRequest
     ) {
-        var response = customerService.addBillingAddress(customerIdPrincipal, addressRequest);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(customerService
+                .addBillingAddress(customerIdPrincipal, addressRequest));
     }
 
     @PostMapping("/me/shipping-addresses")
@@ -83,8 +84,8 @@ public class CustomerController {
             @AuthenticationPrincipal String customerIdPrincipal,
             @RequestBody @Valid AddressRequest addressRequest
     ) {
-        var response = customerService.addShippingAddress(customerIdPrincipal, addressRequest);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(customerService
+                .addShippingAddress(customerIdPrincipal, addressRequest));
     }
 
     @GetMapping("/me/billing-addresses")
@@ -92,8 +93,7 @@ public class CustomerController {
     public ResponseEntity<List<AddressResponse>> getBillingAddresses(
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
-        var responses = customerService.getBillingAddresses(customerIdPrincipal);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(customerService.getBillingAddresses(customerIdPrincipal));
     }
 
     @GetMapping("/me/shipping-addresses")
@@ -101,28 +101,27 @@ public class CustomerController {
     public ResponseEntity<List<AddressResponse>> getShippingAddresses(
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
-        var responses = customerService.getShippingAddresses(customerIdPrincipal);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(customerService.getShippingAddresses(customerIdPrincipal));
     }
 
     @PutMapping("/me/billing-addresses/{billingAddressId}/active")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<String> setActiveBillingAddress(
+    public ResponseEntity<Void> setActiveBillingAddress(
             @AuthenticationPrincipal String customerIdPrincipal,
             @PathVariable("billingAddressId") String billingAddressId
     ) {
         customerService.setActiveBillingAddress(customerIdPrincipal, billingAddressId);
-        return ResponseEntity.ok("Active billing address has been set.");
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/me/shipping-addresses/{shippingAddressId}/active")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<String> setActiveShippingAddress(
+    public ResponseEntity<Void> setActiveShippingAddress(
             @AuthenticationPrincipal String customerIdPrincipal,
             @PathVariable("shippingAddressId") String shippingAddressId
     ) {
         customerService.setActiveShippingAddress(customerIdPrincipal, shippingAddressId);
-        return ResponseEntity.ok("Active shipping address has been set.");
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/me/billing-addresses/active")
@@ -130,8 +129,7 @@ public class CustomerController {
     public ResponseEntity<AddressResponse> getActiveBillingAddress(
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
-        var response = customerService.getActiveBillingAddress(customerIdPrincipal);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(customerService.getActiveBillingAddress(customerIdPrincipal));
     }
 
     @GetMapping("/me/shipping-addresses/active")
@@ -139,8 +137,7 @@ public class CustomerController {
     public ResponseEntity<AddressResponse> getActiveShippingAddress(
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
-        var response = customerService.getActiveShippingAddress(customerIdPrincipal);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(customerService.getActiveShippingAddress(customerIdPrincipal));
     }
 
     @GetMapping
@@ -170,8 +167,7 @@ public class CustomerController {
     public ResponseEntity<List<AddressResponse>> getBillingAddressesByCustomerId(
             @PathVariable String customerId
     ) {
-        var responses = customerService.getBillingAddresses(customerId);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(customerService.getBillingAddresses(customerId));
     }
 
     @GetMapping("/{customerId}/shipping-addresses")
@@ -179,7 +175,6 @@ public class CustomerController {
     public ResponseEntity<List<AddressResponse>> getShippingAddressesByCustomerId(
             @PathVariable String customerId
     ) {
-        var responses = customerService.getShippingAddresses(customerId);
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(customerService.getShippingAddresses(customerId));
     }
 }

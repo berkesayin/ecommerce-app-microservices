@@ -4,8 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -20,9 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
-
-    private static final Logger logger = LoggerFactory.getLogger(HeaderAuthenticationFilter.class);
 
     // header names are same with gateway's UserHeaderFilter values
     public static final String HEADER_CUSTOMER_ID = "X-User-CustomerId";
@@ -41,7 +39,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         String rolesHeader = request.getHeader(HEADER_ROLES);
         String email = request.getHeader(HEADER_EMAIL);
 
-        logger.debug("BasketService - Request to {}: {} received with headers: " +
+        log.debug("BasketService - Request to {}: {} received with headers: " +
                         "customerID='{}', roles='{}', email='{}'",
                 request.getMethod(), request.getRequestURI(), customerId, rolesHeader, email);
 
@@ -76,10 +74,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             authentication.setDetails(details);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            logger.info("BasketService - for customerId: '{}', roles: {}, details: {}",
+            log.info("BasketService - for customerId: '{}', roles: {}, details: {}",
                     customerId, authorities, details);
         } else {
-            logger.warn("BasketService - {} or {} header is missing or empty. " ,
+            log.warn("BasketService - {} or {} header is missing or empty. " ,
                     HEADER_CUSTOMER_ID, HEADER_ROLES, request.getRequestURI());
         }
 

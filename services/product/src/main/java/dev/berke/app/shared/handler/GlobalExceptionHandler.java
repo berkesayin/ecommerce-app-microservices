@@ -1,9 +1,9 @@
 package dev.berke.app.shared.handler;
 
 import dev.berke.app.shared.exception.CategoryNotFoundException;
+import dev.berke.app.shared.exception.InvalidRequestException;
 import dev.berke.app.shared.exception.ProductAlreadyExistsException;
 import dev.berke.app.shared.exception.ProductNotFoundException;
-import org.apache.kafka.common.errors.InvalidRequestException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;

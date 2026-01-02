@@ -21,8 +21,7 @@ import dev.berke.app.payment.api.dto.PaymentResponse;
 import dev.berke.app.payment.application.PaymentService;
 
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,9 +29,9 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class IyzipayService {
 
-    private static final Logger logger = LoggerFactory.getLogger(IyzipayService.class);
     private final Options useIyzipayOptions;
     private final CustomerClient customerClient;
     private final BasketClient basketClient;
@@ -54,28 +53,38 @@ public class IyzipayService {
 
         PaymentCard paymentCard = createPaymentCard(customerId);
         request.setPaymentCard(paymentCard);
-        logger.info("Payment Card: {}", paymentCard);
 
         Buyer buyer = createBuyer();
         request.setBuyer(buyer);
-        logger.info("Buyer: {}", buyer);
 
         Address billingAddress = createBillingAddress();
         request.setBillingAddress(billingAddress);
-        logger.info("Billing Address: {}", billingAddress);
 
         Address shippingAddress = createShippingAddress();
         request.setShippingAddress(shippingAddress);
-        logger.info("Shipping Address: {}", shippingAddress);
 
         List<BasketItem> basketItems = createBasketItems();
         request.setBasketItems(basketItems);
-        logger.info("Basket Items: {}", basketItems);
 
         BigDecimal totalBasketPrice = calculateTotalBasketPrice();
         request.setPrice(totalBasketPrice);
         request.setPaidPrice(totalBasketPrice);
-        logger.info("Total Basket Price: {}", totalBasketPrice);
+
+        // log.info("Payment Request: {}", request);
+
+        log.info("Initiating iyzico payment. CustomerId: {}, Price: {}, BasketItemCount: {}",
+                customerId,
+                totalBasketPrice,
+                basketItems.size()
+        );
+
+        if (log.isDebugEnabled()) {
+            log.debug("Payment Details - Buyer: {}, ShippingCity: {}, BillingCity: {}",
+                    buyer.getEmail(),
+                    shippingAddress.getCity(),
+                    billingAddress.getCity()
+            );
+        }
 
         // create payment using the injected options
         Payment payment = Payment.create(request, useIyzipayOptions);
@@ -147,11 +156,10 @@ public class IyzipayService {
     }
 
     private PaymentCard createPaymentCard(String customerId) {
-        List<CreditCardResponse> creditCards = paymentService
-                .getCreditCards(customerId);
+        List<CreditCardResponse> creditCards =
+                paymentService.getCreditCards(customerId);
 
         if (creditCards != null && !creditCards.isEmpty()) {
-            // use the first credit card in the list
             CreditCardResponse creditCardResponse = creditCards.get(0);
 
             PaymentCard paymentCard = new PaymentCard();
@@ -164,14 +172,15 @@ public class IyzipayService {
 
             return paymentCard;
         } else {
-            logger.warn("No credit cards found for customer: {}", customerId);
+            log.warn("No credit cards found for customer: {}", customerId);
             return new PaymentCard();
         }
     }
 
     private List<com.iyzipay.model.BasketItem> createBasketItems() {
         BasketResponse basketResponse = basketClient.getBasket();
-        List<dev.berke.app.payment.infrastructure.client.basket.BasketItem> fetchedBasketItems = basketResponse.items();
+        List<dev.berke.app.payment.infrastructure.client.basket.BasketItem> fetchedBasketItems =
+                basketResponse.items();
 
         List<com.iyzipay.model.BasketItem> basketItems = fetchedBasketItems.stream()
                 .map(item -> {
