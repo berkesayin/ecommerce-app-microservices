@@ -6,8 +6,10 @@ import dev.berke.app.address.api.dto.AddressRequest;
 import dev.berke.app.address.api.dto.AddressResponse;
 import dev.berke.app.customer.api.dto.CustomerCreateResponse;
 import dev.berke.app.customer.api.dto.CustomerDataRequest;
-import dev.berke.app.customer.api.dto.CustomerResponse;
+import dev.berke.app.customer.api.dto.CustomerDetailResponse;
+import dev.berke.app.customer.api.dto.CustomerSummaryResponse;
 import dev.berke.app.customer.api.dto.CustomerUpdateRequest;
+import dev.berke.app.customer.api.dto.CustomerUpdateResponse;
 import dev.berke.app.customer.application.mapper.CustomerMapper;
 import dev.berke.app.customer.domain.model.Customer;
 import dev.berke.app.customer.domain.repository.CustomerRepository;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,7 +55,7 @@ public class CustomerService {
     }
 
     @Transactional
-    public CustomerResponse updateProfile(CustomerUpdateRequest request, String customerId) {
+    public CustomerUpdateResponse updateProfile(CustomerUpdateRequest request, String customerId) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new CustomerNotFoundException(
                         String.format("Customer not found with ID: %s", customerId)
@@ -61,12 +64,12 @@ public class CustomerService {
         updateCustomerFields(customer, request);
 
         Customer savedCustomer = customerRepository.save(customer);
-        return customerMapper.fromCustomer(savedCustomer);
+        return customerMapper.toUpdateResponse(savedCustomer);
     }
 
-    public CustomerResponse getProfile(String customerId) {
+    public CustomerDetailResponse getProfile(String customerId) {
         return customerRepository.findById(customerId)
-                .map(customerMapper::fromCustomer)
+                .map(customerMapper::toDetailResponse)
                 .orElseThrow(() -> new CustomerNotFoundException(
                         String.format("Customer not found with ID: %s", customerId)
                 ));
@@ -76,10 +79,10 @@ public class CustomerService {
         return customerRepository.findById(customerId).isPresent();
     }
 
-    public List<CustomerResponse> getAllCustomers() {
+    public List<CustomerSummaryResponse> getAllCustomers() {
         return customerRepository.findAll()
                 .stream()
-                .map(customerMapper::fromCustomer)
+                .map(customerMapper::toSummaryResponse)
                 .collect(Collectors.toList());
     }
 
@@ -90,7 +93,6 @@ public class CustomerService {
                     String.format("Customer not found with ID: %s", customerId)
             );
         }
-
         customerRepository.deleteById(customerId);
     }
 
@@ -148,26 +150,12 @@ public class CustomerService {
 
     public List<AddressResponse> getBillingAddresses(String customerId) {
         Customer customer = getCustomerOrThrow(customerId);
-
-        List<Address> addresses = customer.getBillingAddresses() != null
-                ? customer.getBillingAddresses()
-                : List.of();
-
-        return addresses.stream()
-                .map(addressMapper::toAddressResponse)
-                .collect(Collectors.toList());
+        return toAddressResponseList(customer.getBillingAddresses());
     }
 
     public List<AddressResponse> getShippingAddresses(String customerId) {
         Customer customer = getCustomerOrThrow(customerId);
-
-        List<Address> addresses = customer.getShippingAddresses() != null
-                ? customer.getShippingAddresses()
-                : List.of();
-
-        return addresses.stream()
-                .map(addressMapper::toAddressResponse)
-                .collect(Collectors.toList());
+        return toAddressResponseList(customer.getShippingAddresses());
     }
 
     @Transactional
@@ -220,7 +208,6 @@ public class CustomerService {
 
     public AddressResponse getActiveBillingAddress(String customerId) {
         Customer customer = getCustomerOrThrow(customerId);
-
         String activeId = customer.getActiveBillingAddressId();
 
         if (!StringUtils.hasText(activeId)) {
@@ -240,7 +227,6 @@ public class CustomerService {
 
     public AddressResponse getActiveShippingAddress(String customerId) {
         Customer customer = getCustomerOrThrow(customerId);
-
         String activeId = customer.getActiveShippingAddressId();
 
         if (!StringUtils.hasText(activeId)) {
@@ -272,13 +258,21 @@ public class CustomerService {
                     String.format("%s address not found with ID: %s", type, addressId)
             );
         }
-
         return addresses.stream()
                 .filter(a -> a.getId().equals(addressId))
                 .findFirst()
                 .orElseThrow(() -> new AddressNotFoundException(
                         String.format("%s address not found with ID: %s", type, addressId)
                 ));
+    }
+
+    private List<AddressResponse> toAddressResponseList(List<Address> addresses) {
+        if (addresses == null) {
+            return Collections.emptyList();
+        }
+        return addresses.stream()
+                .map(addressMapper::toAddressResponse)
+                .collect(Collectors.toList());
     }
 
     private void updateCustomerFields(Customer customer, CustomerUpdateRequest request) {

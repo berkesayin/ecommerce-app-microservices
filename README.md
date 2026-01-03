@@ -25,10 +25,11 @@ Software architectures and principles:
 - `API gateway`
 - `Distributed systems`
 - `Domain driven design`
+- `Event driven architecture`
 
 Technologies:
 - `Java 21`
-- `Spring Boot v.3.3.1`
+- `Spring Boot 3.3.1`
 - `Spring Security`
 - `Maven`
 - `GitHub Actions`

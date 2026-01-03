@@ -70,8 +70,6 @@ public class IyzipayService {
         request.setPrice(totalBasketPrice);
         request.setPaidPrice(totalBasketPrice);
 
-        // log.info("Payment Request: {}", request);
-
         log.info("Initiating iyzico payment. CustomerId: {}, Price: {}, BasketItemCount: {}",
                 customerId,
                 totalBasketPrice,
@@ -205,5 +203,4 @@ public class IyzipayService {
 
         return totalPriceResponse.totalPrice();
     }
-
 }

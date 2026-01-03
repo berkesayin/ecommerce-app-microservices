@@ -38,5 +38,4 @@ public class AddressMapper {
                 address.getIsActive()
         );
     }
-
 }

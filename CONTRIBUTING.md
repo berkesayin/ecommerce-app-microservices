@@ -11,10 +11,10 @@
 
 Contributions are welcome! If you have suggestions or want to improve the code, please check  these steps:
 
+- `Fork and clone the repository`
 - `Set up and configure the project`
 - `Open an issue explaining what is needed`
-- `Fork the repository`
 - `Create a new branch (git checkout -b feature/new-feature)`
 - `Commit your changes (git commit -m 'Add some new feature')`
-- `Push to the branch (git push origin feature/new-feature)`
+- `Push the branch (git push origin feature/new-feature)`
 - `Open a Pull Request`

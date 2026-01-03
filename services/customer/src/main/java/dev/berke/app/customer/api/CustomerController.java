@@ -4,8 +4,10 @@ import dev.berke.app.address.api.dto.AddressRequest;
 import dev.berke.app.address.api.dto.AddressResponse;
 import dev.berke.app.customer.api.dto.CustomerCreateResponse;
 import dev.berke.app.customer.api.dto.CustomerDataRequest;
-import dev.berke.app.customer.api.dto.CustomerResponse;
+import dev.berke.app.customer.api.dto.CustomerDetailResponse;
+import dev.berke.app.customer.api.dto.CustomerSummaryResponse;
 import dev.berke.app.customer.api.dto.CustomerUpdateRequest;
+import dev.berke.app.customer.api.dto.CustomerUpdateResponse;
 import dev.berke.app.customer.application.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +44,7 @@ public class CustomerController {
 
     @PutMapping("/me")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<CustomerResponse> updateProfile(
+    public ResponseEntity<CustomerUpdateResponse> updateProfile(
             @RequestBody @Valid CustomerUpdateRequest customerUpdateRequest,
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
@@ -53,7 +55,7 @@ public class CustomerController {
 
     @GetMapping("/me")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<CustomerResponse> getProfile(
+    public ResponseEntity<CustomerDetailResponse> getProfile(
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
         return ResponseEntity.ok(customerService.getProfile(customerIdPrincipal));
@@ -142,13 +144,13 @@ public class CustomerController {
 
     @GetMapping
     @PreAuthorize("hasRole('BACKOFFICE')")
-    public ResponseEntity<List<CustomerResponse>> getAllCustomers() {
+    public ResponseEntity<List<CustomerSummaryResponse>> getAllCustomers() {
         return ResponseEntity.ok(customerService.getAllCustomers());
     }
 
     @GetMapping("/{customerId}")
     @PreAuthorize("hasRole('BACKOFFICE')")
-    public ResponseEntity<CustomerResponse> getCustomerById(
+    public ResponseEntity<CustomerDetailResponse> getCustomerById(
             @PathVariable String customerId
     ) {
         return ResponseEntity.ok(customerService.getProfile(customerId));

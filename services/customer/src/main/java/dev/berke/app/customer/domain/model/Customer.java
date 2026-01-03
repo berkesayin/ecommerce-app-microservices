@@ -7,8 +7,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.time.Instant;
 import java.util.List;
 
 @AllArgsConstructor
@@ -28,12 +30,13 @@ public class Customer {
     private String password;
     private String identityNumber;
     private String registrationAddress;
-    private Address billingAddress;
-    private Address shippingAddress;
     private List<Address> billingAddresses;
     private List<Address> shippingAddresses;
     private String activeBillingAddressId;
     private String activeShippingAddressId;
+
+    @LastModifiedDate
+    private Instant updatedAt;
 
     public Customer(String name, String surname, String gsmNumber, String email) {
         this.name = name;
