@@ -1,3 +1,10 @@
+logging:
+  level:
+    root: INFO
+    dev.berke.app.ordersearch: ${APP_LOG_LEVEL:INFO}
+    dev.berke.app.productsearch: ${APP_LOG_LEVEL:INFO}
+server:
+  port: 8015
 spring:
   application:
     name: search-service
@@ -32,6 +39,3 @@ app:
     topics:
       product-events: product-events
       order-created: order-creations
-server:
-  port: 8015
-

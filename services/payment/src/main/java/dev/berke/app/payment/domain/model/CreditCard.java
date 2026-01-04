@@ -17,8 +17,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "iyzipay_cards")
-public class Payment {
+@Table(name = "credit_cards")
+public class CreditCard {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,5 +29,4 @@ public class Payment {
     private String expireMonth;
     private String expireYear;
     private String cvc;
-
 }

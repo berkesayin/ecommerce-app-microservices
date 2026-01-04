@@ -1,3 +1,9 @@
+logging:
+  level:
+    root: INFO
+    dev.berke.app.order: ${APP_LOG_LEVEL:INFO}
+server:
+  port: 8070
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/order
@@ -28,5 +34,3 @@ app:
       order-received: order-confirmations
       order-created: order-creations
       order-status-updated: order-status-updates
-server:
-  port: 8070

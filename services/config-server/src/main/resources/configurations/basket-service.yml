@@ -1,7 +1,11 @@
+logging:
+  level:
+    root: INFO
+    dev.berke.app.basket: ${APP_LOG_LEVEL:INFO}
+server:
+  port: 8040
 spring:
   data:
     redis:
       host: localhost
       port: 6379
-server:
-  port: 8040

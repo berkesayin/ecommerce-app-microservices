@@ -4,9 +4,9 @@ import dev.berke.app.category.domain.model.Category;
 import dev.berke.app.product.domain.model.Product;
 import dev.berke.app.product.api.dto.ProductCreateRequest;
 import dev.berke.app.product.api.dto.ProductResponse;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 public class ProductMapper {
 
     public Product toProduct(ProductCreateRequest productCreateRequest, Category category) {

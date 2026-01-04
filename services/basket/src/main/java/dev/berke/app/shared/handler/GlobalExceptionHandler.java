@@ -1,6 +1,7 @@
 package dev.berke.app.shared.handler;
 
 import dev.berke.app.shared.exception.BasketNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -19,9 +20,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    // 1. basket not found
     @ExceptionHandler(BasketNotFoundException.class)
     ProblemDetail handleBasketNotFoundException(BasketNotFoundException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
@@ -33,19 +34,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
-    // 2. unexpected runtime exceptions
-    @ExceptionHandler(Exception.class)
-    ProblemDetail handleGlobalException(Exception ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
+    // common infrastructure exceptions
 
-        problemDetail.setTitle("Internal Server Error");
-        problemDetail.setProperty("timestamp", Instant.now());
-
-        return problemDetail;
-    }
-
-    // 3. validation errors (@Valid)
+    // validation errors (@Valid)
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex,
@@ -69,7 +60,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return createResponseEntity(problemDetail, headers, status, request);
     }
 
-    // 4. json parsing errors
+    // json parsing errors
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex,
@@ -86,5 +77,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problemDetail.setProperty("timestamp", Instant.now());
 
         return createResponseEntity(problemDetail, headers, status, request);
+    }
+
+    // unexpected 500 errors
+    @ExceptionHandler(Exception.class)
+    ProblemDetail handleGlobalException(Exception ex) {
+        log.error("An unexpected error occurred: ", ex);
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
+
+        problemDetail.setTitle("Internal Server Error");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
     }
 }

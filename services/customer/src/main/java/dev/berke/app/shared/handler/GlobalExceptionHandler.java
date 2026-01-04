@@ -5,6 +5,7 @@ import dev.berke.app.shared.exception.CustomerAlreadyExistsException;
 import dev.berke.app.shared.exception.CustomerNotFoundException;
 import dev.berke.app.shared.exception.InvalidRequestException;
 import dev.berke.app.shared.exception.NoActiveAddressFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -23,9 +24,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    // 1. resource not found (customer, address)
     @ExceptionHandler({
             CustomerNotFoundException.class,
             AddressNotFoundException.class,
@@ -41,7 +42,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
-    // 2. customer exists
     @ExceptionHandler(CustomerAlreadyExistsException.class)
     ProblemDetail handleProductAlreadyExistsException(CustomerAlreadyExistsException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
@@ -53,6 +53,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
+    // common infrastructure exceptions
+
+    // business logic check
     @ExceptionHandler(InvalidRequestException.class)
     ProblemDetail handleInvalidRequestException(InvalidRequestException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
@@ -64,21 +67,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
-    // 4. unexpected errors (Unchanged)
-    @ExceptionHandler(Exception.class)
-    ProblemDetail handleGlobalException(Exception ex) {
-        // It's good practice to log the full exception here
-        // log.error("An unexpected error occurred: ", ex);
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
-
-        problemDetail.setTitle("Internal Server Error");
-        problemDetail.setProperty("timestamp", Instant.now());
-
-        return problemDetail;
-    }
-
-    // 5. validation errors (@Valid) (Unchanged)
+    // validation errors (@Valid)
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex,
@@ -102,7 +91,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return createResponseEntity(problemDetail, headers, status, request);
     }
 
-    // 6. json parsing errors (Unchanged)
+    // json parsing errors
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex,
@@ -119,5 +108,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problemDetail.setProperty("timestamp", Instant.now());
 
         return createResponseEntity(problemDetail, headers, status, request);
+    }
+
+    // unexpected 500 errors
+    @ExceptionHandler(Exception.class)
+    ProblemDetail handleGlobalException(Exception ex) {
+        log.error("An unexpected error occurred: ", ex);
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
+
+        problemDetail.setTitle("Internal Server Error");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
     }
 }

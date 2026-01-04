@@ -11,6 +11,7 @@ public record CustomerDetailResponse(
         String gsmNumber,
         String email,
         String registrationAddress,
+        String identityNumber,
         List<AddressResponse> billingAddresses,
         List<AddressResponse> shippingAddresses,
         String activeBillingAddressId,

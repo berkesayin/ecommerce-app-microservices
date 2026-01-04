@@ -1,3 +1,9 @@
+logging:
+  level:
+    root: INFO
+    dev.berke.app.product: ${APP_LOG_LEVEL:INFO}
+server:
+  port: 8050
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/product
@@ -25,5 +31,3 @@ app:
   kafka:
     topics:
       product-events: product-events
-server:
-  port: 8050

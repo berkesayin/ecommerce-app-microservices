@@ -1,3 +1,9 @@
+logging:
+  level:
+    root: INFO
+    dev.berke.app.auth: ${APP_LOG_LEVEL:INFO}
+server:
+  port: 8030
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/auth
@@ -17,5 +23,3 @@ token:
   app:
     jwtSecret: ${JWT_SECRET}
     jwtExpirationMs: 86400000
-server:
-  port: 8030

@@ -1,18 +1,18 @@
 package dev.berke.app.payment.infrastructure.paymentprovider.iyzipay;
 
 import com.iyzipay.Options;
-import com.iyzipay.model.Address;
-import com.iyzipay.model.BasketItem;
-import com.iyzipay.model.BasketItemType;
-import com.iyzipay.model.Buyer;
-import com.iyzipay.model.Payment;
-import com.iyzipay.model.PaymentCard;
+import com.iyzipay.model.*;
 import com.iyzipay.request.CreatePaymentRequest;
 
+import com.iyzipay.request.RetrievePaymentRequest;
+import dev.berke.app.payment.api.dto.PaymentDetailResponse;
+import dev.berke.app.payment.application.mapper.PaymentMapper;
+import dev.berke.app.payment.domain.model.CreditCard;
+import dev.berke.app.payment.domain.model.PaymentTransaction;
+import dev.berke.app.payment.domain.repository.PaymentTransactionRepository;
 import dev.berke.app.payment.infrastructure.client.basket.BasketClient;
 import dev.berke.app.payment.infrastructure.client.basket.BasketResponse;
 import dev.berke.app.payment.infrastructure.client.basket.BasketTotalPriceResponse;
-import dev.berke.app.payment.api.dto.CreditCardResponse;
 import dev.berke.app.payment.infrastructure.client.customer.CustomerClient;
 import dev.berke.app.payment.infrastructure.messaging.PaymentEventProducer;
 import dev.berke.app.payment.domain.event.PaymentReceivedEvent;
@@ -20,11 +20,15 @@ import dev.berke.app.payment.PaymentMethod;
 import dev.berke.app.payment.api.dto.PaymentResponse;
 import dev.berke.app.payment.application.PaymentService;
 
+import dev.berke.app.shared.exception.InvalidRequestException;
+import dev.berke.app.shared.exception.PaymentExecutionException;
+import dev.berke.app.shared.exception.UpstreamDataException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component
@@ -37,6 +41,8 @@ public class IyzipayService {
     private final BasketClient basketClient;
     private final PaymentService paymentService;
     private final PaymentEventProducer paymentEventProducer;
+    private final PaymentMapper paymentMapper;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
     public PaymentResponse createPaymentRequestWithCard(
             String customerId
@@ -51,8 +57,22 @@ public class IyzipayService {
 
         CreatePaymentRequest request = new CreatePaymentRequest();
 
-        PaymentCard paymentCard = createPaymentCard(customerId);
-        request.setPaymentCard(paymentCard);
+        String conversationId = UUID.randomUUID().toString();
+        request.setConversationId(conversationId);
+
+        List<BasketItem> basketItems = createBasketItems();
+        if (basketItems.isEmpty()) {
+            throw new InvalidRequestException("Cannot process payment for an empty basket.");
+        }
+        request.setBasketItems(basketItems);
+
+        BigDecimal totalBasketPrice = calculateTotalBasketPrice();
+        if (totalBasketPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidRequestException("Total price must be greater than zero.");
+        }
+
+        request.setPrice(totalBasketPrice);
+        request.setPaidPrice(totalBasketPrice);
 
         Buyer buyer = createBuyer();
         request.setBuyer(buyer);
@@ -63,14 +83,11 @@ public class IyzipayService {
         Address shippingAddress = createShippingAddress();
         request.setShippingAddress(shippingAddress);
 
-        List<BasketItem> basketItems = createBasketItems();
-        request.setBasketItems(basketItems);
+        PaymentCard paymentCard = createPaymentCard(customerId);
+        request.setPaymentCard(paymentCard);
 
-        BigDecimal totalBasketPrice = calculateTotalBasketPrice();
-        request.setPrice(totalBasketPrice);
-        request.setPaidPrice(totalBasketPrice);
-
-        log.info("Initiating iyzico payment. CustomerId: {}, Price: {}, BasketItemCount: {}",
+        log.info("Initiating iyzico payment. ConversationId: {}, CustomerId: {}, Price: {}, BasketItemCount: {}",
+                conversationId,
                 customerId,
                 totalBasketPrice,
                 basketItems.size()
@@ -86,38 +103,61 @@ public class IyzipayService {
 
         // create payment using the injected options
         Payment payment = Payment.create(request, useIyzipayOptions);
+        log.info("Iyzico Payment response received. ConversationID: {}, Status: {}, PaymentId: {}",
+                payment.getConversationId(), payment.getStatus(), payment.getPaymentId());
 
-        var customerName = request.getBuyer().getName() + " " + request.getBuyer().getSurname();
-        var paymentMethod = PaymentMethod.IYZICO_PAYMENT;
+        savePaymentTransaction(payment, customerId, totalBasketPrice);
 
+        // check payment status
+        if (!"success".equalsIgnoreCase(payment.getStatus())) {
+            log.error("CreditCard failed. ErrorCode: {}, ErrorMessage: {}",
+                    payment.getErrorCode(), payment.getErrorMessage());
+
+            throw new PaymentExecutionException(
+                    String.format("CreditCard failed: %s", payment.getErrorMessage())
+            );
+        }
+
+        // payment received
+        var customerName = buyer.getName() + " " + buyer.getSurname();
         paymentEventProducer.sendPaymentNotification(
                 new PaymentReceivedEvent(
                         customerName,
-                        request.getBuyer().getEmail(),
+                        buyer.getEmail(),
                         totalBasketPrice,
-                        paymentMethod
+                        PaymentMethod.IYZICO_PAYMENT
                 )
         );
 
-        return new PaymentResponse(payment.getPaymentStatus(), payment.getPaymentId());
+        return new PaymentResponse(
+                payment.getStatus(),
+                payment.getPaymentId(),
+                payment.getConversationId(),
+                payment.getErrorMessage(), // null if payment received
+                payment.getPaidPrice()
+        );
     }
 
     private Buyer createBuyer() {
         Buyer buyer = new Buyer();
 
         var customer = this.customerClient.getProfile()
-                .orElseThrow(() -> new RuntimeException(
-                        "Customer not found"));
+                .orElseThrow(() -> new UpstreamDataException(
+                        "Cannot retrieve customer profile for payment.")
+                );
 
         var activeShippingAddress = customerClient.getActiveShippingAddress();
+        if (activeShippingAddress == null) {
+            throw new UpstreamDataException("Active shipping address not found in customer service.");
+        }
 
         buyer.setId(customer.id());
         buyer.setName(customer.name());
         buyer.setSurname(customer.surname());
-        buyer.setGsmNumber(customer.gsmNumber().toString());
+        buyer.setGsmNumber(customer.gsmNumber());
         buyer.setEmail(customer.email());
         buyer.setIdentityNumber(customer.identityNumber());
-        buyer.setRegistrationAddress(customer.registrationAddress().toString());
+        buyer.setRegistrationAddress(customer.registrationAddress());
         buyer.setCity(activeShippingAddress.city());
         buyer.setCountry(activeShippingAddress.country());
         buyer.setZipCode(activeShippingAddress.zipCode());
@@ -127,8 +167,11 @@ public class IyzipayService {
 
     private Address createBillingAddress() {
         Address billingAddress = new Address();
-
         var activeBillingAddress = customerClient.getActiveBillingAddress();
+
+        if (activeBillingAddress == null) {
+            throw new UpstreamDataException("Active billing address not found in customer service.");
+        }
 
         billingAddress.setContactName(activeBillingAddress.contactName());
         billingAddress.setCity(activeBillingAddress.city());
@@ -141,8 +184,11 @@ public class IyzipayService {
 
     private Address createShippingAddress() {
         Address shippingAddress = new Address();
+        var activeShippingAddress = customerClient.getActiveShippingAddress();
 
-        var activeShippingAddress = customerClient.getActiveBillingAddress();
+        if (activeShippingAddress == null) {
+            throw new UpstreamDataException("Active shipping address not found in customer service.");
+        }
 
         shippingAddress.setContactName(activeShippingAddress.contactName());
         shippingAddress.setCity(activeShippingAddress.city());
@@ -154,33 +200,27 @@ public class IyzipayService {
     }
 
     private PaymentCard createPaymentCard(String customerId) {
-        List<CreditCardResponse> creditCards =
-                paymentService.getCreditCards(customerId);
+        CreditCard creditCard = paymentService.getProcessableCreditCard(customerId);
 
-        if (creditCards != null && !creditCards.isEmpty()) {
-            CreditCardResponse creditCardResponse = creditCards.get(0);
+        PaymentCard paymentCard = new PaymentCard();
 
-            PaymentCard paymentCard = new PaymentCard();
+        paymentCard.setCardHolderName(creditCard.getCardHolderName());
+        paymentCard.setCardNumber(creditCard.getCardNumber());
+        paymentCard.setExpireMonth(creditCard.getExpireMonth());
+        paymentCard.setExpireYear(creditCard.getExpireYear());
+        paymentCard.setCvc(creditCard.getCvc());
 
-            paymentCard.setCardHolderName(creditCardResponse.cardHolderName());
-            paymentCard.setCardNumber(creditCardResponse.cardNumber());
-            paymentCard.setExpireMonth(creditCardResponse.expireMonth());
-            paymentCard.setExpireYear(creditCardResponse.expireYear());
-            paymentCard.setCvc(creditCardResponse.cvc());
-
-            return paymentCard;
-        } else {
-            log.warn("No credit cards found for customer: {}", customerId);
-            return new PaymentCard();
-        }
+        return paymentCard;
     }
 
     private List<com.iyzipay.model.BasketItem> createBasketItems() {
         BasketResponse basketResponse = basketClient.getBasket();
-        List<dev.berke.app.payment.infrastructure.client.basket.BasketItem> fetchedBasketItems =
-                basketResponse.items();
 
-        List<com.iyzipay.model.BasketItem> basketItems = fetchedBasketItems.stream()
+        if (basketResponse == null || basketResponse.items() == null) {
+            throw new UpstreamDataException("Cannot retrieve basket items.");
+        }
+
+        return basketResponse.items().stream()
                 .map(item -> {
                     com.iyzipay.model.BasketItem iyziBasketItem = new com.iyzipay.model.BasketItem();
                     iyziBasketItem.setId(String.valueOf(item.getProductId()));
@@ -189,18 +229,54 @@ public class IyzipayService {
                     iyziBasketItem.setItemType(BasketItemType.PHYSICAL.name());
                     iyziBasketItem.setPrice(item
                             .getBasePrice()
-                            .multiply(BigDecimal.valueOf(item.getQuantity())
-                            ));
+                            .multiply(BigDecimal.valueOf(item.getQuantity()))
+                    );
                     return iyziBasketItem;
                 })
                 .collect(Collectors.toList());
-        return basketItems;
     }
 
     private BigDecimal calculateTotalBasketPrice() {
-        BasketTotalPriceResponse totalPriceResponse =
-                basketClient.getTotalBasketPrice();
+        BasketTotalPriceResponse totalPriceResponse = basketClient.getTotalBasketPrice();
+        if (totalPriceResponse == null || totalPriceResponse.totalPrice() == null) {
+            throw new UpstreamDataException("Cannot to retrieve basket price.");
+        }
 
         return totalPriceResponse.totalPrice();
+    }
+
+    private void savePaymentTransaction(
+            Payment payment,
+            String customerId,
+            BigDecimal requestPrice
+    ) {
+        try {
+            PaymentTransaction transaction =
+                    paymentMapper.toPaymentTransaction(payment, customerId, requestPrice);
+
+            paymentTransactionRepository.save(transaction);
+
+        } catch (Exception e) {
+            // if the db save fails (connection timeout etc.), but bank payment is successful
+            // error is just logged
+            log.error("CRITICAL: Failed to save PaymentTransaction to DB! PaymentId: {}",
+                    payment.getPaymentId(), e);
+        }
+    }
+
+    public PaymentDetailResponse getPaymentDetails(String paymentId) {
+        RetrievePaymentRequest request = new RetrievePaymentRequest();
+        request.setPaymentId(paymentId);
+
+        log.info("Backoffice: Retrieving detailed payment info for Payment ID: {}", paymentId);
+
+        Payment payment = Payment.retrieve(request, useIyzipayOptions);
+
+        if (payment.getStatus() == null) {
+            log.error("Iyzico API returned null status for Payment ID: {}", paymentId);
+            throw new PaymentExecutionException("Cannot retrieve payment data.");
+        }
+
+        return paymentMapper.toPaymentDetailResponse(payment);
     }
 }

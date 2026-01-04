@@ -9,13 +9,13 @@ import dev.berke.app.customer.api.dto.CustomerSummaryResponse;
 import dev.berke.app.customer.api.dto.CustomerUpdateResponse;
 import dev.berke.app.customer.domain.model.Customer;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Service
+@Component
 @RequiredArgsConstructor
 public class CustomerMapper {
 
@@ -51,6 +51,7 @@ public class CustomerMapper {
                 customer.getGsmNumber(),
                 customer.getEmail(),
                 customer.getRegistrationAddress(),
+                customer.getIdentityNumber(),
                 billingResponses,
                 shippingResponses,
                 customer.getActiveBillingAddressId(),

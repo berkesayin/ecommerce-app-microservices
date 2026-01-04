@@ -1,9 +1,9 @@
 package dev.berke.app.shared.handler;
 
-import dev.berke.app.shared.exception.CategoryNotFoundException;
+import dev.berke.app.shared.exception.CreditCardNotFoundException;
 import dev.berke.app.shared.exception.InvalidRequestException;
-import dev.berke.app.shared.exception.ProductAlreadyExistsException;
-import dev.berke.app.shared.exception.ProductNotFoundException;
+import dev.berke.app.shared.exception.PaymentExecutionException;
+import dev.berke.app.shared.exception.UpstreamDataException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -26,23 +26,35 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    @ExceptionHandler({ProductNotFoundException.class, CategoryNotFoundException.class})
-    ProblemDetail handleResourceNotFoundException(RuntimeException ex) {
+    @ExceptionHandler(CreditCardNotFoundException.class)
+    ProblemDetail handleCreditCardNotFoundException(CreditCardNotFoundException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND, ex.getMessage());
 
-        problemDetail.setTitle("Resource Not Found");
+        problemDetail.setTitle("Credit Card Not Found");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;
     }
 
-    @ExceptionHandler(ProductAlreadyExistsException.class)
-    ProblemDetail handleProductAlreadyExistsException(ProductAlreadyExistsException ex) {
+    @ExceptionHandler(PaymentExecutionException.class)
+    ProblemDetail handlePaymentExecutionException(PaymentExecutionException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, ex.getMessage());
+                HttpStatus.PAYMENT_REQUIRED, ex.getMessage());
 
-        problemDetail.setTitle("Product Already Exists");
+        problemDetail.setTitle("CreditCard Failed");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    // upstream data issues (customer, basket service issues)
+    @ExceptionHandler(UpstreamDataException.class)
+    ProblemDetail handleUpstreamDataException(UpstreamDataException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_GATEWAY, ex.getMessage()); // 502 Bad Gateway
+
+        problemDetail.setTitle("Upstream Service Error");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;
