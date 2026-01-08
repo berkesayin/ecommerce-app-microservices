@@ -44,7 +44,7 @@ public class IyzipayService {
     private final PaymentMapper paymentMapper;
     private final PaymentTransactionRepository paymentTransactionRepository;
 
-    public PaymentResponse createPaymentRequestWithCard(
+    public PaymentResponse createPayment(
             String customerId
     ) {
         // creating and setting buyer info for iyzipayment

@@ -46,8 +46,7 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> createPayment(
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
-        return ResponseEntity.ok(iyzipayService
-                .createPaymentRequestWithCard(customerIdPrincipal));
+        return ResponseEntity.ok(iyzipayService.createPayment(customerIdPrincipal));
     }
 
     @GetMapping("/{paymentId}")
