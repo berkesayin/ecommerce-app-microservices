@@ -11,8 +11,8 @@ public record CustomerResponse(
         String password,
         String identityNumber,
         String registrationAddress,
-        List<Address> billingAddresses,
-        List<Address> shippingAddresses,
+        List<AddressResponse> billingAddresses,
+        List<AddressResponse> shippingAddresses,
         String activeBillingAddressId,
         String activeShippingAddressId
 ) {

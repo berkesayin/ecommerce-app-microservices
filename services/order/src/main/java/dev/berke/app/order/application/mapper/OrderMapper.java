@@ -3,11 +3,11 @@ package dev.berke.app.order.application.mapper;
 import dev.berke.app.order.domain.model.Order;
 import dev.berke.app.order.api.dto.OrderRequest;
 import dev.berke.app.order.api.dto.OrderResponse;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
-@Service
+@Component
 public class OrderMapper {
 
     public Order toOrder(

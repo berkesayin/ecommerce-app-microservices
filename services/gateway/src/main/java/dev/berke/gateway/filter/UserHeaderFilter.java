@@ -1,5 +1,6 @@
 package dev.berke.gateway.filter;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -12,16 +13,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Collection;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class UserHeaderFilter implements GlobalFilter, Ordered {
-
-    private static final Logger logger = LoggerFactory.getLogger(UserHeaderFilter.class);
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -39,7 +36,7 @@ public class UserHeaderFilter implements GlobalFilter, Ordered {
                         if (customerId != null) {
                             requestBuilder.header("X-User-CustomerId", customerId);
                         } else {
-                            logger.warn("'customerId' claim not found in JWT.");
+                            log.warn("'customerId' claim not found in JWT.");
                         }
 
                         // roles/authorities (by JwtAuthenticationConverter)
@@ -50,7 +47,7 @@ public class UserHeaderFilter implements GlobalFilter, Ordered {
                                     .collect(Collectors.joining(","));
                             requestBuilder.header("X-User-Roles", rolesHeaderValue);
                         } else {
-                            logger.warn("No authorities found in Authentication object for JWT.");
+                            log.warn("No authorities found in Authentication object for JWT.");
                         }
 
                         // extract email
@@ -58,10 +55,10 @@ public class UserHeaderFilter implements GlobalFilter, Ordered {
                         if (email != null) {
                             requestBuilder.header("X-User-Email", email);
                         } else {
-                            logger.warn("'email' claim not found in JWT.");
+                            log.warn("'email' claim not found in JWT.");
                         }
 
-                        logger.debug("Forwarding request to resource services with headers: " +
+                        log.debug("Forwarding request to resource services with headers: " +
                                         "X-User-CustomerId={}, " +
                                         "X-User-Roles={}, " +
                                         "X-User-Email={}",

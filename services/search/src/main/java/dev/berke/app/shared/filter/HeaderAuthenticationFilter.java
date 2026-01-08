@@ -4,8 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -21,9 +20,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 // @Component
+@Slf4j
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
-
-    private static final Logger logger = LoggerFactory.getLogger(HeaderAuthenticationFilter.class);
 
     public static final String HEADER_CUSTOMER_ID = "X-User-CustomerId";
     public static final String HEADER_ROLES = "X-User-Roles";
@@ -41,7 +39,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         String email = request.getHeader(HEADER_EMAIL); // we have customerId, do not need this
 
         if (StringUtils.hasText(customerId) && StringUtils.hasText(rolesHeader)) {
-            logger.debug(
+            log.debug(
                     "Headers received: {}='{}', {}='{}', {}='{}'",
                     HEADER_CUSTOMER_ID, customerId,
                     HEADER_ROLES, rolesHeader,
@@ -72,16 +70,16 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             authentication.setDetails(details);
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            logger.info("" + "SecurityContext provides principal (customerId): '{}', " +
+            log.info("" + "SecurityContext provides principal (customerId): '{}', " +
                     "roles: {}, and email: {}", customerId, authorities, details.containsKey("email")
             );
 
         } else {
             if (!StringUtils.hasText(customerId)) {
-                logger.warn("{} header is missing or empty. Cannot authenticate.", HEADER_CUSTOMER_ID);
+                log.warn("{} header is missing or empty. Cannot authenticate.", HEADER_CUSTOMER_ID);
             }
             if (!StringUtils.hasText(rolesHeader)) {
-                logger.warn("{} header is missing or empty. Cannot authenticate.", HEADER_ROLES);
+                log.warn("{} header is missing or empty. Cannot authenticate.", HEADER_ROLES);
             }
         }
 

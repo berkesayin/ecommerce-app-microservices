@@ -1,20 +1,22 @@
 package dev.berke.app.product.application;
 
-import dev.berke.app.shared.constants.ProductConstants;
+import dev.berke.app.category.domain.model.Category;
+import dev.berke.app.category.domain.repository.CategoryRepository;
 import dev.berke.app.product.domain.model.Product;
 import dev.berke.app.product.infrastructure.messaging.ProductEventProducer;
-import dev.berke.app.product.api.dto.ProductRequest;
+import dev.berke.app.product.api.dto.ProductCreateRequest;
 import dev.berke.app.product.api.dto.ProductResponse;
 import dev.berke.app.product.application.mapper.ProductMapper;
 import dev.berke.app.product.domain.repository.ProductRepository;
-import jakarta.persistence.EntityNotFoundException;
+import dev.berke.app.shared.exception.CategoryNotFoundException;
+import dev.berke.app.shared.exception.ProductAlreadyExistsException;
+import dev.berke.app.shared.exception.ProductNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.common.errors.InvalidRequestException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,35 +24,51 @@ import java.util.stream.Collectors;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
     private final ProductEventProducer productEventProducer;
 
-    public ProductResponse createProduct(ProductRequest productRequest) {
-        var product = productMapper.toProduct(productRequest);
-        var savedProduct = productRepository.save(product);
+    public ProductResponse createProduct(ProductCreateRequest productCreateRequest) {
+        if(productRepository.existsBySku(productCreateRequest.sku())) {
+            throw new ProductAlreadyExistsException(
+                    String.format("Product with this SKU code already exists: %s",
+                            productCreateRequest.sku())
+            );
+        }
+
+        Integer categoryId = productCreateRequest.categoryId();
+
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new CategoryNotFoundException(
+                        String.format("Category not found with ID: %s", categoryId)
+                ));
+
+        Product product = productMapper.toProduct(productCreateRequest, category);
+        Product savedProduct = productRepository.save(product);
+
         return productMapper.toProductResponse(savedProduct);
     }
 
     @Transactional
     public ProductResponse setProductStatus(Integer productId, boolean newStatus) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        ProductConstants.PRODUCT_NOT_FOUND_MESSAGE + productId
+                .orElseThrow(() -> new ProductNotFoundException(
+                        String.format("Product not found with ID: %s", productId)
                 ));
 
-        if (Objects.equals(product.getStatus(), newStatus)) {
-            throw new InvalidRequestException("Product status is already " +
-                    (newStatus ? "Published (Active)" : "Unpublished (Inactive)"));
+        if (product.isActive() == newStatus) {
+            throw new InvalidRequestException(
+                    String.format("Product status is already %s",
+                    newStatus ? "Active" : "Inactive")
+            );
         }
-
-        boolean oldStatus = product.getStatus() != null && product.getStatus();
 
         product.setStatus(newStatus);
         Product updatedProduct = productRepository.save(product);
 
-        if (!oldStatus && newStatus) {
+        if (newStatus) {
             productEventProducer.sendProductPublishedEvent(updatedProduct);
-        } else if (oldStatus && !newStatus) {
+        } else {
             productEventProducer.sendProductUnpublishedEvent(updatedProduct.getProductId());
         }
 
@@ -60,8 +78,8 @@ public class ProductService {
     public ProductResponse getProductById(Integer productId) {
         return productRepository.findById(productId)
                 .map(productMapper::toProductResponse)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        ProductConstants.PRODUCT_NOT_FOUND_MESSAGE + productId
+                .orElseThrow(() -> new ProductNotFoundException(
+                        String.format("Product not found for customer ID: %s", productId)
                 ));
     }
 
@@ -75,8 +93,8 @@ public class ProductService {
     public Integer getCategoryIdOfProduct(Integer productId) {
         return productRepository.findById(productId)
                 .map(product -> product.getCategory().getCategoryId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        ProductConstants.PRODUCT_NOT_FOUND_MESSAGE + productId
+                .orElseThrow(() -> new ProductNotFoundException(
+                        String.format("Product not found for customer ID: %s", productId)
                 ));
     }
 }

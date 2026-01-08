@@ -9,13 +9,13 @@ import dev.berke.app.basket.api.dto.BasketResponse;
 import dev.berke.app.basket.api.dto.BasketTotalPriceResponse;
 import dev.berke.app.basket.infrastructure.client.product.ProductClient;
 import dev.berke.app.basket.infrastructure.client.product.ProductResponse;
+import dev.berke.app.shared.exception.BasketNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,12 +26,15 @@ public class BasketService {
     private final ProductClient productClient;
 
     public BasketResponse getBasket(String customerId) {
-        Optional<Basket> basket = basketRepository.findByCustomerId(customerId);
-        return basket.map(value -> new BasketResponse(
-                        value.getCustomerId(),
-                        value.getItems()
-                ))
-                .orElse(null);
+        Basket basket = basketRepository.findById(customerId)
+                .orElseThrow(() -> new BasketNotFoundException(
+                        String.format("Basket not found for customer ID: %s", customerId)
+                ));
+
+        return new BasketResponse(
+                basket.getCustomerId(),
+                basket.getItems()
+        );
     }
 
     public BasketResponse addItemToBasket(
@@ -79,15 +82,24 @@ public class BasketService {
         return new BasketResponse(updatedBasket.getCustomerId(), updatedBasket.getItems());
     }
 
-
-    public BasketTotalPriceResponse calculateTotalBasketPrice(
-            String customerId
-    ) {
+    public BasketTotalPriceResponse calculateTotalBasketPrice(String customerId) {
         Basket basket = basketRepository.findById(customerId)
-                .orElseThrow(() -> new RuntimeException("Basket not found for customer id: " + customerId));
+                .orElseThrow(() -> new BasketNotFoundException(
+                        String.format("Basket not found for customer ID: %s", customerId)
+                ));
 
-        BigDecimal totalPrice = basket.getItems().stream()
-                .map(item -> item.getBasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+        List<BasketItem> items = basket.getItems();
+
+        if (items == null || items.isEmpty()) {
+            return new BasketTotalPriceResponse(customerId, BigDecimal.ZERO);
+        }
+
+        BigDecimal totalPrice = items.stream()
+                .map(item -> {
+                    BigDecimal price = item.getBasePrice() != null ? item.getBasePrice() : BigDecimal.ZERO;
+
+                    return price.multiply(BigDecimal.valueOf(item.getQuantity()));
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return new BasketTotalPriceResponse(customerId, totalPrice);

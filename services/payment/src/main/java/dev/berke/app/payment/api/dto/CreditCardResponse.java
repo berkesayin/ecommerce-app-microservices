@@ -6,7 +6,6 @@ public record CreditCardResponse(
         String cardHolderName,
         String cardNumber,
         String expireMonth,
-        String expireYear,
-        String cvc
+        String expireYear
 ) {
 }

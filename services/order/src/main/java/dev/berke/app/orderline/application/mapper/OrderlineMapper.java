@@ -4,9 +4,10 @@ import dev.berke.app.order.domain.model.Order;
 import dev.berke.app.orderline.domain.model.Orderline;
 import dev.berke.app.orderline.api.dto.OrderlineRequest;
 import dev.berke.app.orderline.api.dto.OrderlineResponse;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
-@Service
+@Component
 public class OrderlineMapper {
 
     public Orderline toOrderLine(OrderlineRequest orderlineRequest) {

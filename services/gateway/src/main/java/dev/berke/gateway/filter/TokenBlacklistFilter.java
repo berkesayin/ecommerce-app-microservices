@@ -1,7 +1,6 @@
 package dev.berke.gateway.filter;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -20,13 +19,12 @@ import org.springframework.core.io.buffer.DataBuffer; // custom response body
 
 import java.nio.charset.StandardCharsets;
 
-
 @Component
+@Slf4j
 public class TokenBlacklistFilter implements GlobalFilter, Ordered {
 
     // same as AuthService
     private static final String TOKEN_BLACKLIST_PREFIX = "blacklist:token:";
-    private static final Logger logger = LoggerFactory.getLogger(TokenBlacklistFilter.class);
     private final ReactiveStringRedisTemplate redisTemplate;
 
     @Autowired
@@ -50,7 +48,7 @@ public class TokenBlacklistFilter implements GlobalFilter, Ordered {
                         return redisTemplate.hasKey(redisKey)
                                 .flatMap(isBlacklisted -> {
                                     if (Boolean.TRUE.equals(isBlacklisted)) {
-                                        logger.warn("Access denied. Token is blacklisted: {}",
+                                        log.warn("Access denied. Token is blacklisted: {}",
                                                 maskToken(tokenValue));
 
                                         return sendErrorResponse(
@@ -63,7 +61,7 @@ public class TokenBlacklistFilter implements GlobalFilter, Ordered {
                                     return chain.filter(exchange); // not blacklisted
                                 })
                                 .onErrorResume(throwable -> {
-                                    logger.error("Redis error while checking token blacklist.", throwable);
+                                    log.error("Redis error while checking token blacklist.", throwable);
                                     return sendErrorResponse(
                                             exchange,
                                             HttpStatus.SERVICE_UNAVAILABLE,

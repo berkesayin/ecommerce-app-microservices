@@ -38,3 +38,4 @@ Run the service.
 | POST | `Base URL/me/credit-cards` | `hasRole('USER')` | `createCreditCard` |
 | GET  | `Base URL/me/credit-cards` | `hasRole('USER')` | `getCreditCards` |
 | POST | `Base URL/iyzi-payment` | `hasRole('USER')` | `createPayment` |
+| GET | `Base URL/{paymentId}` | `hasRole('BACKOFFICE')` | `getPaymentDetails` |

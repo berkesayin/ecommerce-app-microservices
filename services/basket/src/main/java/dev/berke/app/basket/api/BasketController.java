@@ -4,6 +4,7 @@ import dev.berke.app.basket.api.dto.BasketAddItemRequest;
 import dev.berke.app.basket.api.dto.BasketResponse;
 import dev.berke.app.basket.application.BasketService;
 import dev.berke.app.basket.api.dto.BasketTotalPriceResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,7 +34,7 @@ public class BasketController {
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<BasketResponse> addItemToBasket(
             @AuthenticationPrincipal String customerIdPrincipal,
-            @RequestBody BasketAddItemRequest basketAddItemRequest
+            @Valid @RequestBody BasketAddItemRequest basketAddItemRequest
     ) {
         return ResponseEntity.ok(basketService.addItemToBasket(customerIdPrincipal, basketAddItemRequest));
     }

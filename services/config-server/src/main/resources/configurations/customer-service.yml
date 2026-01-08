@@ -1,3 +1,9 @@
+logging:
+  level:
+    root: INFO
+    dev.berke.app.customer: ${APP_LOG_LEVEL:INFO}
+server:
+  port: 8090
 spring:
   data:
     mongodb:
@@ -7,5 +13,3 @@ spring:
       port: 27017
       database: customer
       authentication-database: admin
-server:
-  port: 8090
