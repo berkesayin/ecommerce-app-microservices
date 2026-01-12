@@ -5,7 +5,6 @@ import dev.berke.app.order.api.dto.OrderResponse;
 import dev.berke.app.order.application.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,7 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -32,7 +33,14 @@ public class OrderController {
             @AuthenticationPrincipal String customerIdPrincipal
     ) {
         OrderResponse orderResponse = orderService.createOrder(orderRequest, customerIdPrincipal);
-        return new ResponseEntity<>(orderResponse, HttpStatus.CREATED);
+
+        URI location = ServletUriComponentsBuilder
+                .fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(orderResponse.orderId())
+                .toUri();
+
+        return ResponseEntity.created(location).body(orderResponse);
     }
 
     @GetMapping

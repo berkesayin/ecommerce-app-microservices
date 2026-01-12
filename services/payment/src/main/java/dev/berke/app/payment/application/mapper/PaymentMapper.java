@@ -90,7 +90,6 @@ public class PaymentMapper {
         return new PaymentDetailResponse(
                 // transaction
                 payment.getPaymentId(),
-                payment.getConversationId(),
                 payment.getStatus(),
                 payment.getPaymentStatus(),
                 payment.getPhase(),

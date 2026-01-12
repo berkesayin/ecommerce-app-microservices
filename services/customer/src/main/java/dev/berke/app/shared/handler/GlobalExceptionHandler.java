@@ -53,8 +53,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problemDetail;
     }
 
-    // common infrastructure exceptions
-
     // business logic check
     @ExceptionHandler(InvalidRequestException.class)
     ProblemDetail handleInvalidRequestException(InvalidRequestException ex) {
@@ -66,6 +64,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         return problemDetail;
     }
+
+    // common infrastructure exceptions
 
     // validation errors (@Valid)
     @Override

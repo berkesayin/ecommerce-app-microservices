@@ -1,11 +1,10 @@
 package dev.berke.app.order.application;
 
-import dev.berke.app.shared.constants.OrderConstants;
+import dev.berke.app.order.infrastructure.client.basket.BasketResponse;
 import dev.berke.app.order.infrastructure.client.customer.Address;
 import dev.berke.app.order.infrastructure.client.customer.CustomerClient;
 import dev.berke.app.order.infrastructure.client.customer.CustomerResponse;
 import dev.berke.app.order.domain.event.OrderCreatedEvent;
-import dev.berke.app.order.application.exception.BusinessException;
 import dev.berke.app.order.domain.event.OrderReceivedEvent;
 import dev.berke.app.order.infrastructure.messaging.OrderEventProducer;
 import dev.berke.app.order.api.dto.OrderRequest;
@@ -16,14 +15,15 @@ import dev.berke.app.order.domain.model.OrderStatus;
 import dev.berke.app.order.domain.repository.OrderRepository;
 import dev.berke.app.order.infrastructure.client.basket.BasketClient;
 import dev.berke.app.order.infrastructure.client.basket.BasketItem;
-import dev.berke.app.order.infrastructure.client.basket.BasketTotalPriceResponse;
 import dev.berke.app.orderline.api.dto.OrderlineRequest;
 import dev.berke.app.orderline.application.OrderlineService;
 import dev.berke.app.order.infrastructure.client.payment.PaymentClient;
-import jakarta.persistence.EntityNotFoundException;
+import dev.berke.app.shared.exception.ExternalServiceException;
+import dev.berke.app.shared.exception.InvalidOrderRequestException;
+import dev.berke.app.shared.exception.OrderNotFoundException;
+import dev.berke.app.shared.exception.PaymentProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,170 +45,40 @@ public class OrderService {
     private final OrderEventProducer orderEventProducer;
 
     // Business logic to create order
-    // 1. validate customer and basket
-    // 2. create order with PENDING_PAYMENT status and save order lines
-    // 3. initiate payment: iyzi payment
-    // 4. handle payment confirmed
-    // 5. publish OrderCreatedEvent for order index
-    // 6. publish OrderReceivedEvent for customer email
-    // if payment failed: update order status to PAYMENT_FAILED
-    // 7. return order response
+    // 1. validate external data (customer and basket)
+    // 2. create initial order with PENDING_PAYMENT status
+    // 3. initiate payment with iyzi payment
+    // 4. finalize order if payment received
+    // 5. publish OrderCreatedEvent for order index (search)
+    // 6. publish OrderReceivedEvent for customer email (notification)
+    // 7. if payment failed, the order is saved to db with PAYMENT_FAILED and throws exception
+    // 8. return order response
 
-    @Transactional
-    public OrderResponse createOrder(
-            OrderRequest orderRequest,
-            String customerId
-    ) {
-        // 1. validate customer and basket
-        var customer = this.customerClient.getProfile()
-                .orElseThrow(() -> new BusinessException(
-                        OrderConstants.CUSTOMER_NOT_FOUND_MESSAGE));
+    @Transactional(noRollbackFor = PaymentProcessingException.class)
+    public OrderResponse createOrder(OrderRequest orderRequest, String customerId) {
 
-        if (!customer.id().equals(customerId)) {
-            throw new IllegalStateException("Auth token mismatch: " +
-                    "Token owner does not match the operation.");
-        }
+        // 1. validate external data
+        CustomerResponse customer = validateAndGetCustomer(customerId);
+        BasketResponse basket = validateAndGetBasket();
+        BigDecimal totalPrice = calculateTotalPrice();
 
-        var basket = this.basketClient.getBasket()
-                .orElseThrow(() -> new BusinessException(
-                        OrderConstants.BASKET_EMPTY_MESSAGE));
+        log.info("Starting order process for customer: {} with total: {}", customer.id(), totalPrice);
 
-        var productsToPurchase = basket.items();
+        // 2. create initial order (Status: PENDING_PAYMENT)
+        Order savedOrder = persistInitialOrder(orderRequest, customer, basket, totalPrice);
 
-        ResponseEntity<BasketTotalPriceResponse> basketTotalPriceResponse =
-                basketClient.getTotalBasketPrice();
-
-        BigDecimal totalPrice = basketTotalPriceResponse.getBody().totalPrice();
-
-        log.info("Validated customer '{}' and basket. " + "Products: {}" +
-                "Total basket price: {}", customer.id(), productsToPurchase, totalPrice);
-
-        // 2. create order with PENDING_PAYMENT status and save order lines
-        var order = orderMapper.toOrder(
-                orderRequest,
-                customerId,
-                customer.email(),
-                totalPrice
-        );
-        order.setStatus(OrderStatus.PENDING_PAYMENT);
-        var savedOrder = this.orderRepository.save(order);
-
-        log.info("Saved new order with reference '{}' and status PENDING_PAYMENT",
-                savedOrder.getReference());
-
-        for (BasketItem basketItem : basket.items()) {
-            orderLineService.saveOrderLine(
-                    new OrderlineRequest(
-                            null,
-                            savedOrder.getId(),
-                            basketItem.productId(),
-                            basketItem.quantity()
-                    )
-            );
-        }
-
-        // handle payment process
+        // 3. initiate payment
         try {
-            // 3. initiate payment
-            log.info("Initiating payment for order reference: {}", savedOrder.getReference());
-            paymentClient.createPayment();
+            processPayment(savedOrder);
 
-            // 4. handle payment confirmed
-            savedOrder.setStatus(OrderStatus.PROCESSING);
-            this.orderRepository.save(savedOrder);
+            finalizeOrder(savedOrder, customer, basket); // 4. if payment received
 
-            // 5. publish OrderCreatedEvent for order index
-            OrderCreatedEvent orderCreatedEvent =
-                    buildOrderCreatedEvent(savedOrder, customer, basket.items());
-
-            orderEventProducer.sendOrderCreated(orderCreatedEvent);
-
-            // 6. publish OrderReceivedEvent for customer email
-            orderEventProducer.sendOrderConfirmation(new OrderReceivedEvent(
-                    customer.name() + " " + customer.surname(),
-                    customer.email(),
-                    savedOrder.getReference(),
-                    savedOrder.getPaymentMethod(),
-                    basket.items(),
-                    savedOrder.getTotalAmount()
-            ));
-
-            // 7. return order response
-            return new OrderResponse(
-                    savedOrder.getId(),
-                    savedOrder.getReference()
-            );
-
-        } catch (RuntimeException e) {
-            log.error("Payment failed for order reference: '{}'. " +
-                    "Updating status to PAYMENT_FAILED.", savedOrder.getReference(), e);
-
-            savedOrder.setStatus(OrderStatus.PAYMENT_FAILED);
-            this.orderRepository.save(savedOrder);
-            throw new BusinessException("Payment was declined: " + e.getMessage());
+        } catch (PaymentProcessingException e) {
+            handlePaymentError(savedOrder); // 7. if payment failed
+            throw e;
         }
-    }
 
-    private OrderCreatedEvent buildOrderCreatedEvent(
-            Order order,
-            CustomerResponse customer,
-            List<BasketItem> items
-    ) {
-        Address activeShippingAddress = customer
-                .shippingAddresses()
-                .stream()
-                .filter(a -> a.id().equals(customer.activeShippingAddressId()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Active shipping address " +
-                        "not found for customer " + customer.id()));
-
-        Address activeBillingAddress = customer
-                .billingAddresses()
-                .stream()
-                .filter(a -> a.id().equals(customer.activeBillingAddressId()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Active billing address " +
-                        "not found for customer " + customer.id()));
-
-        // map basket items to the event's item info records
-        List<OrderCreatedEvent.ItemInfo> itemInfos = items.stream()
-                .map(item -> new OrderCreatedEvent.ItemInfo(
-                        item.productId(),
-                        item.productName(),
-                        item.manufacturer(),
-                        item.categoryId(),
-                        item.quantity(),
-                        item.basePrice()
-                )).collect(Collectors.toList());
-
-        return OrderCreatedEvent.builder()
-                .orderId(order.getId().toString())
-                .reference(order.getReference())
-                .orderDate(order.getCreatedDate())
-                .status(order.getStatus().name())
-                .totalAmount(order.getTotalAmount())
-                .paymentMethod(order.getPaymentMethod().name())
-                .customer(new OrderCreatedEvent.CustomerInfo(
-                        customer.id(),
-                        customer.name() + " " + customer.surname(),
-                        customer.email()
-                ))
-                .shippingAddress(new OrderCreatedEvent.AddressInfo(
-                        activeShippingAddress.contactName(),
-                        activeShippingAddress.city(),
-                        activeShippingAddress.country(),
-                        activeShippingAddress.address(),
-                        activeShippingAddress.zipCode()
-                ))
-                .billingAddress(new OrderCreatedEvent.AddressInfo(
-                        activeBillingAddress.contactName(),
-                        activeBillingAddress.city(),
-                        activeBillingAddress.country(),
-                        activeBillingAddress.address(),
-                        activeBillingAddress.zipCode()
-                ))
-                .items(itemInfos)
-                .build();
+        return orderMapper.fromOrder(savedOrder);
     }
 
     public List<OrderResponse> getAllOrders() {
@@ -221,9 +91,147 @@ public class OrderService {
     public OrderResponse getOrderById(Integer orderId) {
         return orderRepository.findById(orderId)
                 .map(orderMapper::fromOrder)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        String.format("No order found with the provided ID: %d", orderId)
+                .orElseThrow(() -> new OrderNotFoundException(
+                        String.format("Order not found with ID: %d", orderId)
                 ));
+    }
+
+    private CustomerResponse validateAndGetCustomer(String customerId) {
+        CustomerResponse customer = customerClient.getProfile()
+                .orElseThrow(() -> new ExternalServiceException(
+                        "Customer service is unavailable or returned empty response."));
+
+        if (!customer.id().equals(customerId)) {
+            throw new InvalidOrderRequestException(
+                    "Authentication mismatch: Token does not match the requested customer profile.");
+        }
+        return customer;
+    }
+
+    private BasketResponse validateAndGetBasket() {
+        BasketResponse basket = basketClient.getBasket()
+                .orElseThrow(() -> new ExternalServiceException(
+                        "Basket service is unavailable or returned empty response."));
+
+        if (basket.items() == null || basket.items().isEmpty()) {
+            throw new InvalidOrderRequestException("Cannot create an order with an empty basket.");
+        }
+        return basket;
+    }
+
+    private BigDecimal calculateTotalPrice() {
+        try {
+            var response = basketClient.getTotalBasketPrice();
+            if (response == null || response.getBody() == null) {
+                throw new ExternalServiceException("Cannot retrieve total price from Basket service.");
+            }
+            return response.getBody().totalPrice();
+        } catch (Exception e) {
+            throw new ExternalServiceException("Error communicating with Basket service: "
+                    + e.getMessage());
+        }
+    }
+
+    private Address findAddress(List<Address> addresses, String activeId, String type) {
+        if (addresses == null || activeId == null) {
+            throw new InvalidOrderRequestException(
+                    String.format("Customer has no active %s address configured.", type));
+        }
+
+        return addresses.stream()
+                .filter(a -> a.id().equals(activeId))
+                .findFirst()
+                .orElseThrow(() -> new InvalidOrderRequestException(
+                        String.format("Active %s address (ID: %s) not found in customer profile.",
+                                type, activeId)));
+    }
+
+    private Order persistInitialOrder(
+            OrderRequest request,
+            CustomerResponse customer,
+            BasketResponse basket,
+            BigDecimal totalPrice
+    ) {
+        Order order = orderMapper.toOrder(request, customer.id(), customer.email(), totalPrice);
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+
+        Order savedOrder = orderRepository.save(order);
+
+        for (BasketItem basketItem : basket.items()) {
+            orderLineService.saveOrderLine(new OrderlineRequest(
+                    null,
+                    savedOrder.getId(),
+                    basketItem.productId(),
+                    basketItem.quantity()
+            ));
+        }
+        return savedOrder;
+    }
+
+    private void processPayment(Order order) {
+        log.info("Initiating payment for Order Ref: {}", order.getReference());
+        try {
+            paymentClient.createPayment();
+        } catch (Exception e) {
+            log.error("Payment failed for Order Ref: {}", order.getReference(), e);
+            throw new PaymentProcessingException("Payment gateway declined the transaction: "
+                    + e.getMessage());
+        }
+    }
+
+    private void handlePaymentError(Order order) {
+        log.warn("Marking Order Ref: {} as PAYMENT_FAILED.", order.getReference());
+        order.setStatus(OrderStatus.PAYMENT_FAILED);
+        orderRepository.save(order);
+    }
+
+    private void finalizeOrder(Order order, CustomerResponse customer, BasketResponse basket) {
+        order.setStatus(OrderStatus.PROCESSING);
+        orderRepository.save(order);
+
+        sendOrderEvents(order, customer, basket.items());
+    }
+
+    private void sendOrderEvents(Order order, CustomerResponse customer, List<BasketItem> items) {
+        // 5. publish OrderCreatedEvent for order index (search)
+        OrderCreatedEvent orderCreatedEvent = buildOrderCreatedEvent(order, customer, items);
+        orderEventProducer.sendOrderCreated(orderCreatedEvent);
+
+        // 6. publish OrderReceivedEvent for customer email (notification)
+        orderEventProducer.sendOrderConfirmation(new OrderReceivedEvent(
+                customer.name() + " " + customer.surname(),
+                customer.email(),
+                order.getReference(),
+                order.getPaymentMethod(),
+                items,
+                order.getTotalAmount()
+        ));
+    }
+
+    private OrderCreatedEvent buildOrderCreatedEvent(
+            Order order,
+            CustomerResponse customer,
+            List<BasketItem> items
+    ) {
+        Address activeShippingAddress = findAddress(
+                customer.shippingAddresses(),
+                customer.activeShippingAddressId(),
+                "shipping"
+        );
+
+        Address activeBillingAddress = findAddress(
+                customer.billingAddresses(),
+                customer.activeBillingAddressId(),
+                "billing"
+        );
+
+        return orderMapper.toOrderCreatedEvent(
+                order,
+                customer,
+                activeShippingAddress,
+                activeBillingAddress,
+                items
+        );
     }
 
 }
