@@ -26,6 +26,7 @@ Software architectures and principles:
 - `Distributed systems`
 - `Domain driven design`
 - `Event driven architecture`
+- `CQRS (product, search)`
 - `Monitoring, observability`
 - `Exception handling`
 

@@ -8,6 +8,8 @@ import dev.berke.app.productsearch.api.dto.ProductSearchRequest;
 import dev.berke.app.productsearch.api.dto.ProductSearchResponse;
 import dev.berke.app.productsearch.api.dto.ProductSearchResult;
 import dev.berke.app.productsearch.domain.repository.ProductSearchRepository;
+import dev.berke.app.shared.exception.InvalidSearchRequestException;
+import dev.berke.app.shared.exception.SearchOperationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchAggregation;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.support.PageableExecutionUtils;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import co.elastic.clients.elasticsearch._types.aggregations.Aggregate;
@@ -34,82 +37,107 @@ public class ProductSearchService {
     public void indexProduct(ProductPublishedEvent event) {
         log.info("INDEX event received for product ID: {}", event.productId());
 
-        ProductDocument.CategoryDocument categoryDocument = ProductDocument.CategoryDocument.builder()
-                .id(event.categoryId().toString())
-                .name(event.categoryName())
-                .build();
+        try {
+            ProductDocument document = mapToProductDocument(event);
+            productSearchRepository.save(document);
 
-        ProductDocument document = ProductDocument.builder()
-                .productId(event.productId())
-                .productName(event.productName())
-                .category(categoryDocument)
-                .basePrice(event.basePrice())
-                .minPrice(event.minPrice())
-                .manufacturer(event.manufacturer())
-                .sku(event.sku())
-                .status(event.status())
-                .createdOn(event.createdOn())
-                .build();
-
-        log.info("Document to be indexed: {}", document);
-
-        productSearchRepository.save(document);
-        log.info("Successfully indexed product with ID: {}", document.getProductId());
+            log.info("Successfully indexed product with ID: {}", document.getProductId());
+        } catch (Exception e) {
+            log.error("Failed to index product ID: {}", event.productId(), e);
+        }
     }
 
     public void deleteProduct(Integer productId) {
         log.info("DELETE event received for product ID: {}", productId);
         productSearchRepository.deleteById(productId);
-        log.info("Successfully deleted product with ID: {}", productId);
     }
 
     public ProductSearchResponse searchProducts(ProductSearchRequest request) {
-        // business logic
-        // 1. perform search
-        // 2. extract aggregations from search response
-        // 3. convert SearchHit<ProductDocument> to a Page<ProductSearchResult>
-        // 4. create and return final response object
+        log.info("Searching for products. Query: [{}], Page: [{}]",
+                request.query(), request.page());
 
-        log.info("Searching for products with request: {}", request);
+        try {
+            SearchHits<ProductDocument> searchHits = productSearchRepository.search(request);
 
-        SearchHits<ProductDocument> searchHits = productSearchRepository.search(request);
-        log.debug("Search hits retrieved: {}", searchHits.getTotalHits());
+            List<SearchAggregation> aggregations = extractAggregations(searchHits);
+            Page<ProductSearchResult> page = toProductSearchResultPage(request, searchHits);
 
-        List<SearchAggregation> aggregations = extractAggregations(searchHits);
-        log.debug("Aggregations extracted: {}", aggregations);
+            return ProductSearchResponse.from(page, aggregations);
+        } catch (Exception e) {
+            throw new SearchOperationException("Failed to execute search query", e);
+        }
+    }
 
-        Page<ProductSearchResult> page = toProductSearchResultPage(request, searchHits);
-        log.debug("Page created with {} elements", page.getNumberOfElements());
+    public AutocompleteSuggestionResponse getAutocompleteSuggestions(String query) {
+        if (query == null || query.trim().length() < 2) {
+            throw new InvalidSearchRequestException(
+                    "Autocomplete query must have at least 2 characters.");
+        }
 
-        return ProductSearchResponse.from(page, aggregations);
+        List<ProductDocument> results =
+                productSearchRepository.findByProductNameAutocomplete(query);
+
+        List<String> suggestions = results.stream()
+                .map(ProductDocument::getProductName)
+                .distinct()
+                .limit(10)
+                .toList();
+
+        return new AutocompleteSuggestionResponse(suggestions);
+    }
+
+    private ProductDocument mapToProductDocument(ProductPublishedEvent productPublishedEvent) {
+        return ProductDocument.builder()
+                .productId(productPublishedEvent.productId())
+                .productName(productPublishedEvent.productName())
+                .category(ProductDocument.CategoryDocument.builder()
+                        .id(productPublishedEvent.categoryId().toString())
+                        .name(productPublishedEvent.categoryName())
+                        .build())
+                .basePrice(productPublishedEvent.basePrice())
+                .minPrice(productPublishedEvent.minPrice())
+                .manufacturer(productPublishedEvent.manufacturer())
+                .sku(productPublishedEvent.sku())
+                .status(productPublishedEvent.status())
+                .createdOn(productPublishedEvent.createdOn())
+                .build();
     }
 
     private Page<ProductSearchResult> toProductSearchResultPage(
-            ProductSearchRequest request,
+            ProductSearchRequest productSearchRequest,
             SearchHits<ProductDocument> searchHits
     ) {
-        List<ProductSearchResult> results = searchHits
-                .getSearchHits()
-                .stream()
-                .map(hit -> ProductSearchResult.from(hit.getContent()))
-                .toList();
-
-        PageRequest pageable = PageRequest.of(request.page(), request.size());
-
-        return PageableExecutionUtils.getPage(results, pageable, searchHits::getTotalHits);
-    }
-
-    private List<SearchAggregation> extractAggregations(
-            SearchHits<ProductDocument> searchHits
-    ) {
-        AggregationsContainer<?> aggregationsContainer = searchHits.getAggregations();
-
-        if (aggregationsContainer == null) {
-            return List.of();
+        if (searchHits.getTotalHits() <= 0) {
+            return Page.empty(PageRequest.of(
+                    productSearchRequest.page(),
+                    productSearchRequest.size())
+            );
         }
 
-        ElasticsearchAggregations elasticsearchAggregations =
-                (ElasticsearchAggregations) aggregationsContainer;
+        List<ProductSearchResult> results =
+                searchHits
+                        .getSearchHits()
+                        .stream()
+                        .map(hit -> ProductSearchResult
+                                .from(hit.getContent())
+                        )
+                        .toList();
+
+        return PageableExecutionUtils.getPage(
+                results,
+                PageRequest.of(productSearchRequest.page(), productSearchRequest.size()),
+                searchHits::getTotalHits
+        );
+    }
+
+    private List<SearchAggregation> extractAggregations(SearchHits<ProductDocument> searchHits) {
+        AggregationsContainer<?> aggregationsContainer = searchHits.getAggregations();
+
+        if (!(aggregationsContainer instanceof
+                ElasticsearchAggregations elasticsearchAggregations)
+        ) {
+            return Collections.emptyList();
+        }
 
         List<SearchAggregation> resultAggregations = new ArrayList<>();
 
@@ -118,42 +146,26 @@ public class ProductSearchService {
 
             if (aggregate.isSterms()) {
                 StringTermsAggregate termsAgg = aggregate.sterms();
-                List<SearchAggregation.Bucket> buckets = termsAgg
-                        .buckets()
-                        .array()
-                        .stream()
-                        .map(bucket -> new SearchAggregation.Bucket(
-                                bucket.key().stringValue(),
-                                bucket.docCount())
-                        )
-                        .toList();
+
+                List<SearchAggregation.Bucket> buckets =
+                        termsAgg.buckets()
+                                .array()
+                                .stream()
+                                .map(bucket -> new SearchAggregation.Bucket(
+                                        bucket.key().stringValue(),
+                                        bucket.docCount()
+                                ))
+                                .toList();
 
                 if (!buckets.isEmpty()) {
-                    resultAggregations.add(new SearchAggregation(
-                            aggregation.aggregation().getName(),
-                            buckets
-                            )
-                    );
+                    resultAggregations.add(
+                            new SearchAggregation(
+                                    aggregation.aggregation().getName(),
+                                    buckets
+                            ));
                 }
             }
         }
         return resultAggregations;
-    }
-    
-    public AutocompleteSuggestionResponse getAutocompleteSuggestions(String query) {
-        if (query == null || query.isBlank() || query.length() < 2) {
-            throw new IllegalArgumentException("Autocomplete query must be " +
-                    "provided and have at least 2 characters.");
-        }
-
-        List<ProductDocument> results = productSearchRepository
-                .findByProductNameAutocomplete(query);
-
-        List<String> suggestions = results.stream()
-                .map(ProductDocument::getProductName)
-                .distinct()
-                .limit(10)
-                .toList();
-        return new AutocompleteSuggestionResponse(suggestions);
     }
 }

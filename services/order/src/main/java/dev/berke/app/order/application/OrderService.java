@@ -67,11 +67,12 @@ public class OrderService {
         // 2. create initial order (Status: PENDING_PAYMENT)
         Order savedOrder = persistInitialOrder(orderRequest, customer, basket, totalPrice);
 
-        // 3. initiate payment
         try {
+            // 3. initiate payment
             processPayment(savedOrder);
 
-            finalizeOrder(savedOrder, customer, basket); // 4. if payment received
+            // 4. if payment received
+            finalizeOrder(savedOrder, customer, basket);
 
         } catch (PaymentProcessingException e) {
             handlePaymentError(savedOrder); // 7. if payment failed
@@ -147,12 +148,12 @@ public class OrderService {
     }
 
     private Order persistInitialOrder(
-            OrderRequest request,
+            OrderRequest orderRequest,
             CustomerResponse customer,
             BasketResponse basket,
             BigDecimal totalPrice
     ) {
-        Order order = orderMapper.toOrder(request, customer.id(), customer.email(), totalPrice);
+        Order order = orderMapper.toOrder(orderRequest, customer.id(), customer.email(), totalPrice);
         order.setStatus(OrderStatus.PENDING_PAYMENT);
 
         Order savedOrder = orderRepository.save(order);
@@ -185,53 +186,62 @@ public class OrderService {
         orderRepository.save(order);
     }
 
-    private void finalizeOrder(Order order, CustomerResponse customer, BasketResponse basket) {
+    private void finalizeOrder(
+            Order order,
+            CustomerResponse customerResponse,
+            BasketResponse basketResponse
+    ) {
         order.setStatus(OrderStatus.PROCESSING);
         orderRepository.save(order);
 
-        sendOrderEvents(order, customer, basket.items());
+        sendOrderEvents(order, customerResponse, basketResponse.items());
     }
 
-    private void sendOrderEvents(Order order, CustomerResponse customer, List<BasketItem> items) {
+    private void sendOrderEvents(
+            Order order,
+            CustomerResponse customerResponse,
+            List<BasketItem> basketItems
+    ) {
         // 5. publish OrderCreatedEvent for order index (search)
-        OrderCreatedEvent orderCreatedEvent = buildOrderCreatedEvent(order, customer, items);
+        OrderCreatedEvent orderCreatedEvent =
+                buildOrderCreatedEvent(order, customerResponse, basketItems);
+
         orderEventProducer.sendOrderCreated(orderCreatedEvent);
 
         // 6. publish OrderReceivedEvent for customer email (notification)
         orderEventProducer.sendOrderConfirmation(new OrderReceivedEvent(
-                customer.name() + " " + customer.surname(),
-                customer.email(),
+                customerResponse.name() + " " + customerResponse.surname(),
+                customerResponse.email(),
                 order.getReference(),
                 order.getPaymentMethod(),
-                items,
+                basketItems,
                 order.getTotalAmount()
         ));
     }
 
     private OrderCreatedEvent buildOrderCreatedEvent(
             Order order,
-            CustomerResponse customer,
-            List<BasketItem> items
+            CustomerResponse customerResponse,
+            List<BasketItem> basketItems
     ) {
         Address activeShippingAddress = findAddress(
-                customer.shippingAddresses(),
-                customer.activeShippingAddressId(),
+                customerResponse.shippingAddresses(),
+                customerResponse.activeShippingAddressId(),
                 "shipping"
         );
 
         Address activeBillingAddress = findAddress(
-                customer.billingAddresses(),
-                customer.activeBillingAddressId(),
+                customerResponse.billingAddresses(),
+                customerResponse.activeBillingAddressId(),
                 "billing"
         );
 
         return orderMapper.toOrderCreatedEvent(
                 order,
-                customer,
+                customerResponse,
                 activeShippingAddress,
                 activeBillingAddress,
-                items
+                basketItems
         );
     }
-
 }
