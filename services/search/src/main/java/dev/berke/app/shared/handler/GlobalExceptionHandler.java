@@ -1,10 +1,8 @@
 package dev.berke.app.shared.handler;
 
-import dev.berke.app.shared.exception.AddressNotFoundException;
-import dev.berke.app.shared.exception.CustomerAlreadyExistsException;
-import dev.berke.app.shared.exception.CustomerNotFoundException;
-import dev.berke.app.shared.exception.InvalidCustomerRequestException;
-import dev.berke.app.shared.exception.NoActiveAddressFoundException;
+import dev.berke.app.shared.exception.InvalidSearchRequestException;
+import dev.berke.app.shared.exception.SearchOperationException;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,39 +25,26 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    @ExceptionHandler({
-            CustomerNotFoundException.class,
-            AddressNotFoundException.class,
-            NoActiveAddressFoundException.class
-    })
-    ProblemDetail handleResourceNotFoundException(RuntimeException ex) {
+    @ExceptionHandler(SearchOperationException.class)
+    ProblemDetail handleSearchOperationException(SearchOperationException ex) {
+        log.error("Search infrastructure error: ", ex);
+
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.NOT_FOUND, ex.getMessage());
+                HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred while performing the search.");
 
-        problemDetail.setTitle("Resource Not Found");
-        problemDetail.setProperty("timestamp", Instant.now());
-
-        return problemDetail;
-    }
-
-    @ExceptionHandler(CustomerAlreadyExistsException.class)
-    ProblemDetail handleProductAlreadyExistsException(CustomerAlreadyExistsException ex) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, ex.getMessage());
-
-        problemDetail.setTitle("Customer Already Exists");
+        problemDetail.setTitle("Search Operation Failed");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;
     }
 
     // business logic check
-    @ExceptionHandler(InvalidCustomerRequestException.class)
-    ProblemDetail handleInvalidRequestException(InvalidCustomerRequestException ex) {
+    @ExceptionHandler(InvalidSearchRequestException.class)
+    ProblemDetail handleInvalidSearchRequestException(InvalidSearchRequestException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, ex.getMessage());
 
-        problemDetail.setTitle("Invalid Request");
+        problemDetail.setTitle("Invalid Search Request");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;
@@ -119,6 +104,32 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
 
         problemDetail.setTitle("Internal Server Error");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    // validation for request parameters
+    @ExceptionHandler(ConstraintViolationException.class)
+    ProblemDetail handleConstraintViolationException(ConstraintViolationException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, "Validation failed for request parameters");
+
+        problemDetail.setTitle("Constraint Violation");
+
+        Map<String, String> errors = new HashMap<>();
+
+        ex.getConstraintViolations().forEach(violation -> {
+            String propertyPath = violation.getPropertyPath().toString();
+
+            String field = propertyPath.contains(".")
+                    ? propertyPath.substring(propertyPath.lastIndexOf(".") + 1)
+                    : propertyPath;
+
+            errors.put(field, violation.getMessage());
+        });
+
+        problemDetail.setProperty("errors", errors);
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;

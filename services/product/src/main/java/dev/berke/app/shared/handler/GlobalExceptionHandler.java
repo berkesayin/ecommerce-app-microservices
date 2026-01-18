@@ -1,7 +1,7 @@
 package dev.berke.app.shared.handler;
 
 import dev.berke.app.shared.exception.CategoryNotFoundException;
-import dev.berke.app.shared.exception.InvalidRequestException;
+import dev.berke.app.shared.exception.InvalidProductRequestException;
 import dev.berke.app.shared.exception.ProductAlreadyExistsException;
 import dev.berke.app.shared.exception.ProductNotFoundException;
 import lombok.extern.slf4j.Slf4j;
@@ -51,8 +51,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // common infrastructure exceptions
 
     // business logic check
-    @ExceptionHandler(InvalidRequestException.class)
-    ProblemDetail handleInvalidRequestException(InvalidRequestException ex) {
+    @ExceptionHandler(InvalidProductRequestException.class)
+    ProblemDetail handleInvalidRequestException(InvalidProductRequestException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, ex.getMessage());
 

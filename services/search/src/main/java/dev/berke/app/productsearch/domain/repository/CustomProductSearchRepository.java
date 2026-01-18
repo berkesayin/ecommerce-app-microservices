@@ -6,5 +6,5 @@ import org.springframework.data.elasticsearch.core.SearchHits;
 
 public interface CustomProductSearchRepository {
 
-    SearchHits<ProductDocument> search(ProductSearchRequest request);
+    SearchHits<ProductDocument> search(ProductSearchRequest productSearchRequest);
 }

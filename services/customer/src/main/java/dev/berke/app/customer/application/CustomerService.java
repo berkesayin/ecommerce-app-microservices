@@ -16,7 +16,7 @@ import dev.berke.app.customer.domain.repository.CustomerRepository;
 import dev.berke.app.shared.exception.AddressNotFoundException;
 import dev.berke.app.shared.exception.CustomerAlreadyExistsException;
 import dev.berke.app.shared.exception.CustomerNotFoundException;
-import dev.berke.app.shared.exception.InvalidRequestException;
+import dev.berke.app.shared.exception.InvalidCustomerRequestException;
 import dev.berke.app.shared.exception.NoActiveAddressFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
@@ -169,7 +169,7 @@ public class CustomerService {
         );
 
         if (Boolean.TRUE.equals(addressToActivate.getIsActive())) {
-            throw new InvalidRequestException("This billing address is already active.");
+            throw new InvalidCustomerRequestException("This billing address is already active.");
         }
 
         if (customer.getBillingAddresses() != null) {
@@ -193,7 +193,7 @@ public class CustomerService {
         );
 
         if (Boolean.TRUE.equals(addressToActivate.getIsActive())) {
-            throw new InvalidRequestException("This shipping address is already active.");
+            throw new InvalidCustomerRequestException("This shipping address is already active.");
         }
 
         if (customer.getShippingAddresses() != null) {

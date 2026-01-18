@@ -6,7 +6,6 @@ import java.util.List;
 public record PaymentDetailResponse(
         // transaction summary
         String paymentId,
-        String conversationId,
         String status,
         String paymentStatus,
         String phase,

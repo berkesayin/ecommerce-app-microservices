@@ -2,7 +2,7 @@ package dev.berke.app.auth.api.dto;
 
 import java.util.List;
 
-public record SignInResponse(
+public record LoginResponse(
         String token,
         String type,
         Long id,
@@ -13,7 +13,7 @@ public record SignInResponse(
 ) {
 
     // custom constructor to set default value of "String type" = "Bearer"
-    public SignInResponse(
+    public LoginResponse(
             String token,
             Long id,
             String customerId,

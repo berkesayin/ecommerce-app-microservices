@@ -1,7 +1,12 @@
 package dev.berke.app.payment.infrastructure.paymentprovider.iyzipay;
 
 import com.iyzipay.Options;
-import com.iyzipay.model.*;
+import com.iyzipay.model.Address;
+import com.iyzipay.model.BasketItem;
+import com.iyzipay.model.BasketItemType;
+import com.iyzipay.model.Buyer;
+import com.iyzipay.model.Payment;
+import com.iyzipay.model.PaymentCard;
 import com.iyzipay.request.CreatePaymentRequest;
 
 import com.iyzipay.request.RetrievePaymentRequest;
@@ -265,12 +270,12 @@ public class IyzipayService {
     }
 
     public PaymentDetailResponse getPaymentDetails(String paymentId) {
-        RetrievePaymentRequest request = new RetrievePaymentRequest();
-        request.setPaymentId(paymentId);
+        RetrievePaymentRequest retrievePaymentRequest = new RetrievePaymentRequest();
+        retrievePaymentRequest.setPaymentId(paymentId);
 
         log.info("Backoffice: Retrieving detailed payment info for Payment ID: {}", paymentId);
 
-        Payment payment = Payment.retrieve(request, useIyzipayOptions);
+        Payment payment = Payment.retrieve(retrievePaymentRequest, useIyzipayOptions);
 
         if (payment.getStatus() == null) {
             log.error("Iyzico API returned null status for Payment ID: {}", paymentId);

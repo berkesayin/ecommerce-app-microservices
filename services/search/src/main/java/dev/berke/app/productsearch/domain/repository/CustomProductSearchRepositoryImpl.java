@@ -8,7 +8,6 @@ import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.json.JsonData;
 import dev.berke.app.productsearch.api.dto.ProductSearchRequest;
 import dev.berke.app.productsearch.domain.document.ProductDocument;
-import dev.berke.app.productsearch.domain.repository.CustomProductSearchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
@@ -19,139 +18,187 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 @Repository
 @RequiredArgsConstructor
 public class CustomProductSearchRepositoryImpl implements CustomProductSearchRepository {
 
-    private static final String CATEGORY_AGG = "category_agg";
-    private static final String MANUFACTURER_AGG = "manufacturer_agg";
-
+    private static final String AGG_CATEGORY = "category_agg";
+    private static final String AGG_MANUFACTURER = "manufacturer_agg";
+    private static final String FIELD_PRODUCT_NAME = "product_name";
+    private static final String FIELD_CATEGORY_NAME = "category.name";
+    private static final String FIELD_CATEGORY_KEYWORD = "category.name.keyword";
+    private static final String FIELD_MANUFACTURER = "manufacturer";
+    private static final String FIELD_MANUFACTURER_KEYWORD = "manufacturer.keyword";
+    private static final String FIELD_MIN_PRICE = "min_price";
+    private static final String FIELD_STATUS = "status";
+    private static final String FIELD_CREATED_ON = "created_on";
     private final ElasticsearchOperations elasticsearchOperations;
+
+    // business logic to search products
+    // full-text search
+    // 1. build bool query (where)
+    // 2. initialize native query builder
+    // 3. add aggregations
+    // 4. apply sorting
 
     @Override
     public SearchHits<ProductDocument> search(ProductSearchRequest request) {
-        // business logic to search products
-        // 1. full-text search
-        // 2. filtering: category filter, manufacturer filter, price range filter, filter for active products
-        // 3. aggregations
-        // 4. building native query
-        // 5. sorting
+        BoolQuery boolQuery = buildBoolQuery(request);
 
-        BoolQuery.Builder boolQueryBuilder = new BoolQuery.Builder();
+        NativeQueryBuilder nativeQueryBuilder =
+                NativeQuery.builder()
+                        .withQuery(Query.of(q -> q.bool(boolQuery)))
+                        .withPageable(PageRequest.of(
+                                request.page(),
+                                request.size())
+                        );
 
-        // 1. full-text search
-        if (StringUtils.hasText(request.query())) {
-            boolQueryBuilder.must(q -> q
-                    .multiMatch(mm -> mm
-                            .query(request.query())
-                            .fields("product_name", "category.name", "manufacturer")
-                            .fuzziness("AUTO")
+        addAggregations(nativeQueryBuilder);
+
+        applySorting(nativeQueryBuilder, request.sortBy());
+
+        return elasticsearchOperations.search(
+                nativeQueryBuilder.build(),
+                ProductDocument.class
+        );
+    }
+
+    private BoolQuery buildBoolQuery(ProductSearchRequest request) {
+        BoolQuery.Builder builder = new BoolQuery.Builder();
+
+        addFullTextSearch(builder, request.query());
+        addCategoryFilter(builder, request.categories());
+        addManufacturerFilter(builder, request.manufacturers());
+        addPriceFilter(builder, request.priceRange());
+        addActiveStatusFilter(builder);
+
+        return builder.build();
+    }
+
+    private void addFullTextSearch(BoolQuery.Builder builder, String query) {
+        if (StringUtils.hasText(query)) {
+            builder.must(q -> q.multiMatch(mm -> mm
+                    .query(query)
+                    .fields(
+                            FIELD_PRODUCT_NAME,
+                            FIELD_CATEGORY_NAME,
+                            FIELD_MANUFACTURER
                     )
-            );
+                    .fuzziness("AUTO")
+            ));
         } else {
-            boolQueryBuilder.must(q -> q.matchAll(m -> m));
+            builder.must(q -> q.matchAll(m -> m));
         }
+    }
 
-        // 2. filtering
-        // category filter
-        if (!CollectionUtils.isEmpty(request.categories())) {
-            boolQueryBuilder.filter(f -> f
-                    .terms(t -> t
-                            .field("category.name.keyword")
-                            .terms(v -> v.value(
-                                    request.categories()
-                                            .stream()
-                                            .map(FieldValue::of)
-                                            .toList()
-                                    )
-                            )
+    private void addTermsFilter(
+            BoolQuery.Builder builder,
+            String fieldName,
+            List<String> values
+    ) {
+        if (!CollectionUtils.isEmpty(values)) {
+            builder.filter(f -> f.terms(t -> t
+                    .field(fieldName)
+                    .terms(v -> v.value(values
+                                    .stream()
+                                    .map(FieldValue::of)
+                                    .toList()))
                     )
             );
         }
+    }
 
-        // manufacturer filter
-        if (!CollectionUtils.isEmpty(request.manufacturers())) {
-            boolQueryBuilder.filter(f -> f
-                    .terms(t -> t
-                            .field("manufacturer.keyword")
-                            .terms(v -> v.value(
-                                    request.manufacturers()
-                                            .stream()
-                                            .map(FieldValue::of)
-                                            .toList()
-                                    )
-                            )
+    private void addCategoryFilter(
+            BoolQuery.Builder builder,
+            List<String> categories
+    ) {
+        addTermsFilter(
+                builder,
+                FIELD_CATEGORY_KEYWORD,
+                categories
+        );
+    }
+
+    private void addManufacturerFilter(
+            BoolQuery.Builder builder,
+            List<String> manufacturers
+    ) {
+        addTermsFilter(
+                builder,
+                FIELD_MANUFACTURER_KEYWORD,
+                manufacturers
+        );
+    }
+
+    private void addPriceFilter(
+            BoolQuery.Builder builder,
+            ProductSearchRequest.PriceRange priceRange
+    ) {
+        if (priceRange == null) return;
+
+        builder.filter(f -> f.range(r -> {
+            r.field(FIELD_MIN_PRICE);
+            if (priceRange.min() != null) {
+                r.gte(JsonData.of(priceRange.min().doubleValue()));
+            }
+            if (priceRange.max() != null) {
+                r.lte(JsonData.of(priceRange.max().doubleValue()));
+            }
+            return r;
+        }));
+    }
+
+    private void addActiveStatusFilter(BoolQuery.Builder builder) {
+        builder.filter(f -> f.term(t -> t
+                .field(FIELD_STATUS)
+                .value(FieldValue.of(true))
+        ));
+    }
+
+    private void addAggregations(NativeQueryBuilder builder) {
+        builder.withAggregation(AGG_CATEGORY, Aggregation.of(a -> a
+                .terms(t -> t
+                        .field(FIELD_CATEGORY_KEYWORD)
+                        .size(50))
+        ));
+
+        builder.withAggregation(AGG_MANUFACTURER, Aggregation.of(a -> a
+                .terms(t -> t
+                        .field(FIELD_MANUFACTURER_KEYWORD)
+                        .size(50))
+        ));
+    }
+
+    private void applySorting(
+            NativeQueryBuilder builder,
+            ProductSearchRequest.SortCriteria sortCriteria
+    ) {
+        if (sortCriteria == null) return;
+
+        switch (sortCriteria) {
+            case PRICE_ASC -> builder.withSort(s -> s
+                    .field(f -> f
+                            .field(FIELD_MIN_PRICE)
+                            .order(SortOrder.Asc)
                     )
             );
-        }
-
-        // price range filter
-        if (request.priceRange() != null) {
-            boolQueryBuilder.filter(f -> f
-                    .range(r -> {
-                        r.field("min_price");
-
-                        if (request.priceRange().min() != null) {
-                            r.gte((JsonData) FieldValue.of(
-                                    request.priceRange()
-                                            .min()
-                                            .doubleValue()
-                                    )
-                            );
-                        }
-
-                        if (request.priceRange().max() != null) {
-                            r.lte((JsonData) FieldValue.of(
-                                    request.priceRange()
-                                            .max()
-                                            .doubleValue()
-                                    )
-                            );
-                        }
-
-                        return r;
-                    })
+            case PRICE_DESC -> builder.withSort(s -> s
+                    .field(f -> f
+                            .field(FIELD_MIN_PRICE)
+                            .order(SortOrder.Desc)
+                    )
             );
-        }
-
-        // filter for active products
-        boolQueryBuilder.filter(f -> f.term(
-                t -> t.field("status").value(true)));
-
-        Query finalQuery = new Query(boolQueryBuilder.build());
-
-        // 3. aggregations
-        Aggregation categoryAgg = Aggregation.of(a -> a.terms(
-                t -> t.field("category.name.keyword").size(50)));
-
-        Aggregation manufacturerAgg = Aggregation.of(a -> a.terms(
-                t -> t.field("manufacturer.keyword").size(50)));
-
-        // 4. building native query
-        NativeQueryBuilder nativeQueryBuilder = NativeQuery.builder()
-                .withQuery(finalQuery)
-                .withPageable(PageRequest.of(request.page(), request.size()))
-                .withAggregation(CATEGORY_AGG, categoryAgg)
-                .withAggregation(MANUFACTURER_AGG, manufacturerAgg);
-
-        // 5. sorting
-        if (request.sortBy() != null) {
-            switch (request.sortBy()) {
-                case PRICE_ASC -> nativeQueryBuilder.withSort(
-                        s -> s.field(f -> f.field("min_price").order(SortOrder.Asc)));
-
-                case PRICE_DESC -> nativeQueryBuilder.withSort(
-                        s -> s.field(f -> f.field("min_price").order(SortOrder.Desc)));
-
-                case NEWEST -> nativeQueryBuilder.withSort(
-                        s -> s.field(f -> f.field("created_on").order(SortOrder.Desc)));
-
-                case RELEVANCE -> { }
+            case NEWEST -> builder.withSort(s -> s
+                    .field(f -> f
+                            .field(FIELD_CREATED_ON)
+                            .order(SortOrder.Desc)
+                    )
+            );
+            case RELEVANCE -> {
+                // elasticsearch default
             }
         }
-
-        NativeQuery query = nativeQueryBuilder.build();
-
-        return elasticsearchOperations.search(query, ProductDocument.class);
     }
 }

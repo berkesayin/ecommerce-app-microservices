@@ -1,8 +1,10 @@
 # eCommerce Application With Elastic Data And iyzico Payment
 
-The `shopping app` is designed using `Microservices` architecture and `API Gateway` pattern where each service is responsible for a specific business function. 
+The `eCommerce app` is designed using `Microservices` architecture and `API Gateway` pattern where each service is responsible for a specific business function. 
 
 `iyipay-java` API client developed by `iyzico` is integrated and used for the project at the `payment` service.
+
+`Elastic's eCommerce Orders Data` is added from `Kibana Integrations` and used for `product`, `category`, `search` and `order` functionalities.
 
 `Reference`: https://github.com/iyzico/iyzipay-java
 
@@ -26,6 +28,7 @@ Software architectures and principles:
 - `Distributed systems`
 - `Domain driven design`
 - `Event driven architecture`
+- `CQRS (product, search)`
 - `Monitoring, observability`
 - `Exception handling`
 
@@ -33,13 +36,14 @@ Technologies:
 - `Java 21`
 - `Spring Boot 3.3.1`
 - `Spring Security`
+- `iyzipay-java API Client`
 - `Maven`
 - `GitHub Actions`
 - `Elasticsearch`
 - `Kibana`
 - `Elastic Agent` and `Fleet Server`
 - `Elastic APM` and `OpenTelemetry`
-- `Docker Compose`
+- `Docker`
 - `PostgreSQL`
 - `MongoDB`
 - `Redis`
@@ -47,7 +51,7 @@ Technologies:
 
 ### Event Driven Architecture
 
-`NOTE:` Check docs or diagrams for `asynchronous requests` with `Kafka events`. 
+`NOTE:` Check docs or diagrams for `asynchronous messaging` with `Kafka events`. 
 
 - `ProductPublished`
 - `ProductUnpublished`

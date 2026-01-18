@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+@Builder
 public record OrderCreatedEvent(
         String orderId,
         String reference,
@@ -14,8 +15,8 @@ public record OrderCreatedEvent(
         BigDecimal totalAmount,
         String paymentMethod,
         CustomerInfo customer,
-        AddressInfo activeShippingAddress,
-        AddressInfo activeBillingAddress,
+        AddressInfo shippingAddress,
+        AddressInfo billingAddress,
         List<ItemInfo> items
 ) {
     // denormalization for order index documents
@@ -41,32 +42,4 @@ public record OrderCreatedEvent(
             Integer quantity,
             BigDecimal basePrice
     ) {}
-
-    //  static factory method with @Builder
-    @Builder
-    public static OrderCreatedEvent build(
-            String orderId,
-            String reference,
-            Instant orderDate,
-            String status,
-            BigDecimal totalAmount,
-            String paymentMethod,
-            CustomerInfo customer,
-            AddressInfo shippingAddress,
-            AddressInfo billingAddress,
-            List<ItemInfo> items
-    ) {
-        return new OrderCreatedEvent(
-                orderId,
-                reference,
-                orderDate,
-                status,
-                totalAmount,
-                paymentMethod,
-                customer,
-                shippingAddress,
-                billingAddress,
-                items
-        );
-    }
 }
