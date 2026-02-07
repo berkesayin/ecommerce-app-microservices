@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -21,28 +20,21 @@ public class CustomerMapper {
 
     private final AddressMapper addressMapper;
 
-    // createCustomer
+    // register, create customer
     public Customer toCustomer(CustomerDataRequest request) {
-        if (request == null) {
-            return null;
-        }
+        if (request == null) return null;
 
-        return Customer.builder()
-                .name(request.name())
-                .surname(request.surname())
-                .gsmNumber(request.gsmNumber())
-                .email(request.email())
-                .build();
+        return new Customer(
+                request.name(),
+                request.surname(),
+                request.email(),
+                request.gsmNumber()
+        );
     }
 
-    // getProfile and getCustomerById
-    public CustomerDetailResponse toDetailResponse(Customer customer) {
-        if (customer == null) {
-            return null;
-        }
-
-        List<AddressResponse> billingResponses = toAddressResponseList(customer.getBillingAddresses());
-        List<AddressResponse> shippingResponses = toAddressResponseList(customer.getShippingAddresses());
+    // GET /me
+    public CustomerDetailResponse toCustomerDetailResponse(Customer customer) {
+        if (customer == null) return null;
 
         return new CustomerDetailResponse(
                 customer.getId(),
@@ -52,18 +44,16 @@ public class CustomerMapper {
                 customer.getEmail(),
                 customer.getRegistrationAddress(),
                 customer.getIdentityNumber(),
-                billingResponses,
-                shippingResponses,
-                customer.getActiveBillingAddressId(),
-                customer.getActiveShippingAddressId()
+                toAddressResponseList(customer.getBillingAddresses()),
+                toAddressResponseList(customer.getShippingAddresses()),
+                customer.getActiveBillingAddress().map(Address::getId).orElse(null),
+                customer.getActiveShippingAddress().map(Address::getId).orElse(null)
         );
     }
 
-    // getAllCustomers
-    public CustomerSummaryResponse toSummaryResponse(Customer customer) {
-        if (customer == null) {
-            return null;
-        }
+    // for backoffice
+    public CustomerSummaryResponse toCustomerSummaryResponse(Customer customer) {
+        if (customer == null) return null;
 
         return new CustomerSummaryResponse(
                 customer.getId(),
@@ -74,27 +64,27 @@ public class CustomerMapper {
         );
     }
 
-    // updateProfile
-    public CustomerUpdateResponse toUpdateResponse(Customer customer) {
-        if (customer == null) {
-            return null;
-        }
+    // PATCH /me/identity and PATCH /me/contact
+    public CustomerUpdateResponse toCustomerUpdateResponse(Customer customer) {
+        if (customer == null) return null;
 
         return new CustomerUpdateResponse(
                 customer.getId(),
                 customer.getName(),
                 customer.getSurname(),
                 customer.getEmail(),
+                customer.getGsmNumber(),
                 customer.getUpdatedAt()
         );
     }
 
     private List<AddressResponse> toAddressResponseList(List<Address> addresses) {
-        if (addresses == null) {
+        if (addresses == null || addresses.isEmpty()) {
             return Collections.emptyList();
         }
+
         return addresses.stream()
                 .map(addressMapper::toAddressResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

@@ -27,6 +27,8 @@ Software architectures and principles:
 - `API gateway`
 - `Distributed systems`
 - `Domain driven design`
+- `OOP`
+- `SOLID`
 - `Event driven architecture`
 - `CQRS (product, search)`
 - `Monitoring, observability`
