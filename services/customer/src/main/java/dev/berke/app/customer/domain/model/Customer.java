@@ -80,19 +80,19 @@ public class Customer {
     }
 
     public void addBillingAddress(Address address) {
-        addAddressInternal(this.billingAddresses, address);
+        addAddress(this.billingAddresses, address);
     }
 
     public void addShippingAddress(Address address) {
-        addAddressInternal(this.shippingAddresses, address);
+        addAddress(this.shippingAddresses, address);
     }
 
     public void activateBillingAddress(String addressId) {
-        activateAddressInternal(this.billingAddresses, addressId);
+        activateAddress(this.billingAddresses, addressId);
     }
 
     public void activateShippingAddress(String addressId) {
-        activateAddressInternal(this.shippingAddresses, addressId);
+        activateAddress(this.shippingAddresses, addressId);
     }
 
     public void removeBillingAddress(String addressId) {
@@ -129,7 +129,7 @@ public class Customer {
 
     // if first address -> active
     // if an address is activated -> others deactivated
-    private void addAddressInternal(List<Address> addressList, Address newAddress) {
+    private void addAddress(List<Address> addressList, Address newAddress) {
         if (addressList.isEmpty()) {
             newAddress.activate();
         } else {
@@ -140,7 +140,7 @@ public class Customer {
         addressList.add(newAddress);
     }
 
-    private void activateAddressInternal(List<Address> addressList, String addressId) {
+    private void activateAddress(List<Address> addressList, String addressId) {
         Address addressToActivate = addressList.stream()
                 .filter(a -> a.getId().equals(addressId))
                 .findFirst()

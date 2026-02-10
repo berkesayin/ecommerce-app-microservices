@@ -7,20 +7,13 @@ import java.time.Instant;
 
 public record ProductResponse(
         Integer productId,
-
         String productName,
-
         BigDecimal basePrice,
-
         BigDecimal minPrice,
-
         String manufacturer,
-
         String sku,
 
-        @JsonFormat(shape = JsonFormat.Shape.STRING)
-        Instant createdOn,
-
+        @JsonFormat(shape = JsonFormat.Shape.STRING) Instant createdOn,
         Boolean status,
 
         Integer categoryId
