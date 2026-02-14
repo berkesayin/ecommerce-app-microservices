@@ -27,4 +27,6 @@ Run the service.
 | GET | `Base URL/me` | `hasRole('USER')` | `getBasket` |
 | POST  | `Base URL/items` | `hasRole('USER')` | `addItemToBasket` |
 | GET | `Base URL/total-price` | `hasRole('USER')` | `calculateTotalBasketPrice` |
-
+| PUT | `Base URL/items/{productId}` | `hasRole('USER')` | `updateItemQuantity` |
+| DELETE | `Base URL/items/{productId}` | `hasRole('USER')` | `removeBasketItem` |
+| DELETE | `Base URL` | `hasRole('USER')` | `clearBasket` |
