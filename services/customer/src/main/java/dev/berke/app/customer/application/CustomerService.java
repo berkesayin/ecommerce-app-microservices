@@ -2,32 +2,27 @@ package dev.berke.app.customer.application;
 
 import dev.berke.app.address.domain.model.Address;
 import dev.berke.app.address.application.mapper.AddressMapper;
-import dev.berke.app.address.api.dto.AddressRequest;
+import dev.berke.app.address.api.dto.AddressCreateRequest;
 import dev.berke.app.address.api.dto.AddressResponse;
 import dev.berke.app.customer.api.dto.CustomerCreateResponse;
 import dev.berke.app.customer.api.dto.CustomerDataRequest;
 import dev.berke.app.customer.api.dto.CustomerDetailResponse;
 import dev.berke.app.customer.api.dto.CustomerSummaryResponse;
-import dev.berke.app.customer.api.dto.CustomerUpdateRequest;
 import dev.berke.app.customer.api.dto.CustomerUpdateResponse;
+import dev.berke.app.customer.api.dto.UpdateContactRequest;
+import dev.berke.app.customer.api.dto.UpdateIdentityRequest;
 import dev.berke.app.customer.application.mapper.CustomerMapper;
 import dev.berke.app.customer.domain.model.Customer;
 import dev.berke.app.customer.domain.repository.CustomerRepository;
 import dev.berke.app.shared.exception.AddressNotFoundException;
 import dev.berke.app.shared.exception.CustomerAlreadyExistsException;
 import dev.berke.app.shared.exception.CustomerNotFoundException;
-import dev.berke.app.shared.exception.InvalidCustomerRequestException;
-import dev.berke.app.shared.exception.NoActiveAddressFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -41,261 +36,177 @@ public class CustomerService {
     @Transactional
     public CustomerCreateResponse createCustomer(CustomerDataRequest request) {
         if (customerRepository.existsByEmail(request.email())) {
-            throw new CustomerAlreadyExistsException(
-                    String.format("Customer with email '%s' already exists.", request.email())
-            );
+            throw new CustomerAlreadyExistsException(request.email());
         }
 
         Customer customer = customerMapper.toCustomer(request);
         Customer savedCustomer = customerRepository.save(customer);
 
         log.info("Customer created with ID: {}", savedCustomer.getId());
-
         return new CustomerCreateResponse(savedCustomer.getId());
     }
 
     @Transactional
-    public CustomerUpdateResponse updateProfile(CustomerUpdateRequest request, String customerId) {
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new CustomerNotFoundException(
-                        String.format("Customer not found with ID: %s", customerId)
-                ));
+    public CustomerUpdateResponse updateIdentity(
+            String customerId,
+            UpdateIdentityRequest updateIdentityRequest
+    ) {
+        Customer customer = getCustomerOrThrow(customerId);
 
-        updateCustomerFields(customer, request);
+        customer.updateIdentity(
+                updateIdentityRequest.name(),
+                updateIdentityRequest.surname(),
+                updateIdentityRequest.identityNumber()
+        );
 
-        Customer savedCustomer = customerRepository.save(customer);
-        return customerMapper.toUpdateResponse(savedCustomer);
+        return customerMapper.toCustomerUpdateResponse(customerRepository.save(customer));
     }
 
+    @Transactional
+    public CustomerUpdateResponse updateContact(
+            String customerId,
+            UpdateContactRequest updateContactRequest
+    ) {
+        Customer customer = getCustomerOrThrow(customerId);
+
+        customer.updateContactInfo(
+                updateContactRequest.email(),
+                updateContactRequest.gsmNumber(),
+                updateContactRequest.registrationAddress()
+        );
+
+        return customerMapper.toCustomerUpdateResponse(customerRepository.save(customer));
+    }
+
+    @Transactional(readOnly = true)
     public CustomerDetailResponse getProfile(String customerId) {
         return customerRepository.findById(customerId)
-                .map(customerMapper::toDetailResponse)
-                .orElseThrow(() -> new CustomerNotFoundException(
-                        String.format("Customer not found with ID: %s", customerId)
-                ));
-    }
-
-    public Boolean checkCustomerById(String customerId) {
-        return customerRepository.findById(customerId).isPresent();
-    }
-
-    public List<CustomerSummaryResponse> getAllCustomers() {
-        return customerRepository.findAll()
-                .stream()
-                .map(customerMapper::toSummaryResponse)
-                .collect(Collectors.toList());
+                .map(customerMapper::toCustomerDetailResponse)
+                .orElseThrow(() -> new CustomerNotFoundException(customerId));
     }
 
     @Transactional
     public void deleteProfile(String customerId) {
         if (!customerRepository.existsById(customerId)) {
-            throw new CustomerNotFoundException(
-                    String.format("Customer not found with ID: %s", customerId)
-            );
+            throw new CustomerNotFoundException(customerId);
         }
+
         customerRepository.deleteById(customerId);
     }
 
     @Transactional
-    public AddressResponse addBillingAddress(String customerId, AddressRequest addressRequest) {
+    public AddressResponse addBillingAddress(
+            String customerId,
+            AddressCreateRequest addressCreateRequest
+    ) {
         Customer customer = getCustomerOrThrow(customerId);
-        Address newAddress = addressMapper.toAddress(addressRequest);
+        Address address = addressMapper.toAddress(addressCreateRequest);
 
-        if (customer.getBillingAddresses() == null) {
-            customer.setBillingAddresses(new ArrayList<>());
-        }
-
-        customer.getBillingAddresses().add(newAddress);
-
-        if (Boolean.TRUE.equals(addressRequest.isActive()) || customer.getBillingAddresses().size() == 1) {
-            newAddress.setIsActive(true);
-            customer.getBillingAddresses().stream()
-                    .filter(a -> !a.equals(newAddress))
-                    .forEach(a -> a.setIsActive(false));
-
-            customer.setActiveBillingAddressId(newAddress.getId());
-        } else {
-            newAddress.setIsActive(false);
-        }
-
+        customer.addBillingAddress(address);
         customerRepository.save(customer);
-        return addressMapper.toAddressResponse(newAddress);
+
+        return addressMapper.toAddressResponse(address);
     }
 
     @Transactional
-    public AddressResponse addShippingAddress(String customerId, AddressRequest addressRequest) {
+    public AddressResponse addShippingAddress(
+            String customerId, AddressCreateRequest addressCreateRequest
+    ) {
         Customer customer = getCustomerOrThrow(customerId);
-        Address newAddress = addressMapper.toAddress(addressRequest);
+        Address address = addressMapper.toAddress(addressCreateRequest);
 
-        if (customer.getShippingAddresses() == null) {
-            customer.setShippingAddresses(new ArrayList<>());
-        }
-
-        customer.getShippingAddresses().add(newAddress);
-
-        if (Boolean.TRUE.equals(addressRequest.isActive()) || customer.getShippingAddresses().size() == 1) {
-            newAddress.setIsActive(true);
-            customer.getShippingAddresses().stream()
-                    .filter(a -> !a.equals(newAddress))
-                    .forEach(a -> a.setIsActive(false));
-
-            customer.setActiveShippingAddressId(newAddress.getId());
-        } else {
-            newAddress.setIsActive(false);
-        }
-
+        customer.addShippingAddress(address);
         customerRepository.save(customer);
-        return addressMapper.toAddressResponse(newAddress);
+
+        return addressMapper.toAddressResponse(address);
     }
 
+    @Transactional
+    public void setActiveBillingAddress(String customerId, String addressId) {
+        Customer customer = getCustomerOrThrow(customerId);
+        customer.activateBillingAddress(addressId);
+
+        customerRepository.save(customer);
+    }
+
+    @Transactional
+    public void setActiveShippingAddress(String customerId, String addressId) {
+        Customer customer = getCustomerOrThrow(customerId);
+        customer.activateShippingAddress(addressId);
+
+        customerRepository.save(customer);
+    }
+
+    @Transactional
+    public void deleteBillingAddress(String customerId, String addressId) {
+        Customer customer = getCustomerOrThrow(customerId);
+        customer.removeBillingAddress(addressId);
+
+        customerRepository.save(customer);
+    }
+
+    @Transactional
+    public void deleteShippingAddress(String customerId, String addressId) {
+        Customer customer = getCustomerOrThrow(customerId);
+        customer.removeShippingAddress(addressId);
+
+        customerRepository.save(customer);
+    }
+
+    @Transactional(readOnly = true)
     public List<AddressResponse> getBillingAddresses(String customerId) {
-        Customer customer = getCustomerOrThrow(customerId);
-        return toAddressResponseList(customer.getBillingAddresses());
+        return getCustomerOrThrow(customerId)
+                .getBillingAddresses()
+                .stream()
+                .map(addressMapper::toAddressResponse)
+                .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<AddressResponse> getShippingAddresses(String customerId) {
-        Customer customer = getCustomerOrThrow(customerId);
-        return toAddressResponseList(customer.getShippingAddresses());
+        return getCustomerOrThrow(customerId)
+                .getShippingAddresses()
+                .stream()
+                .map(addressMapper::toAddressResponse)
+                .toList();
     }
 
-    @Transactional
-    public void setActiveBillingAddress(String customerId, String billingAddressId) {
-        Customer customer = getCustomerOrThrow(customerId);
-
-        Address addressToActivate = findAddressById(
-                customer.getBillingAddresses(),
-                billingAddressId,
-                "Billing"
-        );
-
-        if (Boolean.TRUE.equals(addressToActivate.getIsActive())) {
-            throw new InvalidCustomerRequestException("This billing address is already active.");
-        }
-
-        if (customer.getBillingAddresses() != null) {
-            customer.getBillingAddresses().forEach(address -> address.setIsActive(false));
-        }
-
-        addressToActivate.setIsActive(true);
-        customer.setActiveBillingAddressId(billingAddressId);
-
-        customerRepository.save(customer);
-    }
-
-    @Transactional
-    public void setActiveShippingAddress(String customerId, String shippingAddressId) {
-        Customer customer = getCustomerOrThrow(customerId);
-
-        Address addressToActivate = findAddressById(
-                customer.getShippingAddresses(),
-                shippingAddressId,
-                "Shipping"
-        );
-
-        if (Boolean.TRUE.equals(addressToActivate.getIsActive())) {
-            throw new InvalidCustomerRequestException("This shipping address is already active.");
-        }
-
-        if (customer.getShippingAddresses() != null) {
-            customer.getShippingAddresses().forEach(address -> address.setIsActive(false));
-        }
-
-        addressToActivate.setIsActive(true);
-        customer.setActiveShippingAddressId(shippingAddressId);
-
-        customerRepository.save(customer);
-    }
-
+    @Transactional(readOnly = true)
     public AddressResponse getActiveBillingAddress(String customerId) {
         Customer customer = getCustomerOrThrow(customerId);
-        String activeId = customer.getActiveBillingAddressId();
 
-        if (!StringUtils.hasText(activeId)) {
-            throw new NoActiveAddressFoundException(
-                    String.format("No active billing address set for customer: %s", customerId)
-            );
-        }
-
-        Address activeBillingAddress = findAddressById(
-                customer.getBillingAddresses(),
-                activeId,
-                "Billing"
-        );
-
-        return addressMapper.toAddressResponse(activeBillingAddress);
+        return customer.getActiveBillingAddress()
+                .map(addressMapper::toAddressResponse)
+                .orElseThrow(() ->
+                        new AddressNotFoundException("No active billing address found")
+                );
     }
 
+    @Transactional(readOnly = true)
     public AddressResponse getActiveShippingAddress(String customerId) {
         Customer customer = getCustomerOrThrow(customerId);
-        String activeId = customer.getActiveShippingAddressId();
 
-        if (!StringUtils.hasText(activeId)) {
-            throw new NoActiveAddressFoundException(
-                    String.format("No active shipping address set for customer: %s", customerId)
-            );
-        }
-
-        Address activeShippingAddress = findAddressById(
-                customer.getShippingAddresses(),
-                activeId,
-                "Shipping"
-        );
-
-        return addressMapper.toAddressResponse(activeShippingAddress);
+        return customer.getActiveShippingAddress()
+                .map(addressMapper::toAddressResponse)
+                .orElseThrow(() ->
+                        new AddressNotFoundException("No active shipping address found")
+                );
     }
 
-    // helper methods
+    @Transactional(readOnly = true)
+    public List<CustomerSummaryResponse> getAllCustomers() {
+        return customerRepository.findAll().stream()
+                .map(customerMapper::toCustomerSummaryResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean checkCustomerById(String customerId) {
+        return customerRepository.existsById(customerId);
+    }
+
     private Customer getCustomerOrThrow(String customerId) {
         return customerRepository.findById(customerId)
-                .orElseThrow(() -> new CustomerNotFoundException(
-                        String.format("Customer not found with ID: %s", customerId)
-                ));
-    }
-
-    private Address findAddressById(List<Address> addresses, String addressId, String type) {
-        if (addresses == null) {
-            throw new AddressNotFoundException(
-                    String.format("%s address not found with ID: %s", type, addressId)
-            );
-        }
-        return addresses.stream()
-                .filter(a -> a.getId().equals(addressId))
-                .findFirst()
-                .orElseThrow(() -> new AddressNotFoundException(
-                        String.format("%s address not found with ID: %s", type, addressId)
-                ));
-    }
-
-    private List<AddressResponse> toAddressResponseList(List<Address> addresses) {
-        if (addresses == null) {
-            return Collections.emptyList();
-        }
-        return addresses.stream()
-                .map(addressMapper::toAddressResponse)
-                .collect(Collectors.toList());
-    }
-
-    private void updateCustomerFields(Customer customer, CustomerUpdateRequest request) {
-        if (StringUtils.hasText(request.name())) {
-            customer.setName(request.name());
-        }
-        if (StringUtils.hasText(request.surname())) {
-            customer.setSurname(request.surname());
-        }
-        if (StringUtils.hasText(request.gsmNumber())) {
-            customer.setGsmNumber(request.gsmNumber());
-        }
-        if (StringUtils.hasText(request.email())) {
-            customer.setEmail(request.email());
-        }
-        if (StringUtils.hasText(request.password())) {
-            customer.setPassword(request.password());
-        }
-        if (StringUtils.hasText(request.identityNumber())) {
-            customer.setIdentityNumber(request.identityNumber());
-        }
-        if (request.registrationAddress() != null) {
-            customer.setRegistrationAddress(request.registrationAddress());
-        }
+                .orElseThrow(() -> new CustomerNotFoundException(customerId));
     }
 }

@@ -29,7 +29,8 @@ Run the service.
 | GET | `Base URL` | `Public Endpoint` | `getAllProducts` |
 | GET  | `Base URL/{productId}` | `Public Endpoint` | `getProductById` |
 | POST | `Base URL` | `hasRole('BACKOFFICE')` | `createProduct` |
-| PATCH | `Base URL/{productId}/status` | `hasRole('BACKOFFICE')` | `setProductStatus` |
+| PUT | `Base URL/{productId}` | `hasRole('BACKOFFICE')` | `updateProductDetails` |
 | GET | `Base URL/{productId}/category-id` | `hasRole('BACKOFFICE')` | `getCategoryIdOfProduct` |
-
-
+| PUT | `Base URL/{productId}/category` | `hasRole('BACKOFFICE')` | `changeProductCategory` |
+| PATCH | `Base URL/{productId}/publish` | `hasRole('BACKOFFICE')` | `publishProduct` |
+| PATCH | `Base URL/{productId}/unpublish` | `hasRole('BACKOFFICE')` | `unpublishProduct` |

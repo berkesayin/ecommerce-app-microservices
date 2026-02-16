@@ -1,6 +1,8 @@
 package dev.berke.app.shared.handler;
 
 import dev.berke.app.shared.exception.CategoryNotFoundException;
+import dev.berke.app.shared.exception.EventPublishingException;
+import dev.berke.app.shared.exception.InvalidDomainStateException;
 import dev.berke.app.shared.exception.InvalidProductRequestException;
 import dev.berke.app.shared.exception.ProductAlreadyExistsException;
 import dev.berke.app.shared.exception.ProductNotFoundException;
@@ -43,6 +45,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.CONFLICT, ex.getMessage());
 
         problemDetail.setTitle("Product Already Exists");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(InvalidDomainStateException.class)
+    ProblemDetail handleInvalidDomainState(InvalidDomainStateException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, ex.getMessage());
+
+        problemDetail.setTitle("Invalid Domain State");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(EventPublishingException.class)
+    ProblemDetail handleEventPublishingException(EventPublishingException ex) {
+        log.error("An unexpected error occurred: ", ex);
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
+
+        problemDetail.setTitle("Event Publishing Error");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;

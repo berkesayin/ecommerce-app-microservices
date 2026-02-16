@@ -1,8 +1,10 @@
 package dev.berke.app.product.infrastructure.messaging;
 
+import dev.berke.app.product.application.mapper.ProductMapper;
 import dev.berke.app.product.domain.event.ProductPublishedEvent;
 import dev.berke.app.product.domain.event.ProductUnpublishedEvent;
 import dev.berke.app.product.domain.model.Product;
+import dev.berke.app.shared.exception.EventPublishingException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -14,48 +16,42 @@ public class ProductEventProducer {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final String productEventsTopic;
+    private final ProductMapper productMapper;
 
     public ProductEventProducer(
             KafkaTemplate<String, Object> kafkaTemplate,
-            @Value("${app.kafka.topics.product-events}") String productEventsTopic
+            @Value("${app.kafka.topics.product-events}") String productEventsTopic,
+            ProductMapper productMapper
     ) {
         this.kafkaTemplate = kafkaTemplate;
         this.productEventsTopic = productEventsTopic;
+        this.productMapper = productMapper;
     }
 
     public void sendProductPublishedEvent(Product product) {
-        log.info("Preparing to send ProductPublishedEvent for product ID: {}", product.getProductId());
+        log.info("Sending ProductPublishedEvent for product ID: {}", product.getProductId());
 
-        try {
-            ProductPublishedEvent event = new ProductPublishedEvent(
-                    product.getProductId(),
-                    product.getProductName(),
-                    product.getCategory().getCategoryId(),
-                    product.getCategory().getCategoryName(),
-                    product.getBasePrice(),
-                    product.getMinPrice(),
-                    product.getManufacturer(),
-                    product.getSku(),
-                    true,
-                    product.getCreatedOn()
-            );
-            kafkaTemplate.send(productEventsTopic, String.valueOf(event.productId()), event);
-            log.info("Sent ProductPublishedEvent for product ID: {}", product.getProductId());
-        } catch (Exception e) {
-            log.error("Failed to send ProductPublishedEvent for product ID: {}", product.getProductId(), e);
-        }
+        ProductPublishedEvent event = productMapper.toProductPublishedEvent(product);
+        sendEvent(String.valueOf(event.productId()), event);
     }
 
     public void sendProductUnpublishedEvent(Integer productId) {
-        log.info("Preparing to send ProductUnpublishedEvent for product ID: {}", productId);
+        log.info("Sending ProductUnpublishedEvent for product ID: {}", productId);
 
+        ProductUnpublishedEvent event = new ProductUnpublishedEvent(productId);
+        sendEvent(String.valueOf(productId), event);
+    }
+
+    // if kafka is down, db transaction rolls back
+    private void sendEvent(String key, Object event) {
         try {
-            ProductUnpublishedEvent event = new ProductUnpublishedEvent(productId);
-            kafkaTemplate.send(productEventsTopic, String.valueOf(event.productId()), event);
+            kafkaTemplate.send(productEventsTopic, key, event).join();
 
-            log.info("Sent ProductUnpublishedEvent for product ID: {}", productId);
+            log.info("Event sent successfully to topic '{}' with key '{}'",
+                    productEventsTopic, key);
         } catch (Exception e) {
-            log.error("Failed to send ProductUnpublishedEvent for product ID: {}", productId, e);
+            log.error("Failed to send event to Kafka. Key: {}", key, e);
+            throw new EventPublishingException("Failed to publish event to Kafka", e);
         }
     }
 }

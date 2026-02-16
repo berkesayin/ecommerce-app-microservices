@@ -1,5 +1,6 @@
 package dev.berke.app.shared.handler;
 
+import dev.berke.app.shared.exception.BasketItemNotFoundException;
 import dev.berke.app.shared.exception.BasketNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -29,6 +30,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.NOT_FOUND, ex.getMessage());
 
         problemDetail.setTitle("Basket Not Found");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    @ExceptionHandler(BasketItemNotFoundException.class)
+    ProblemDetail handleBasketItemNotFoundException(BasketItemNotFoundException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, ex.getMessage());
+
+        problemDetail.setTitle("Basket Item Not Found");
         problemDetail.setProperty("timestamp", Instant.now());
 
         return problemDetail;
