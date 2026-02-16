@@ -2,9 +2,9 @@
 
 The `eCommerce app` is designed using `Microservices` architecture and `API Gateway` pattern where each service is responsible for a specific business function. 
 
-`iyipay-java` API client developed by `iyzico` is integrated and used for the project at the `payment` service.
-
 `Elastic's eCommerce Orders Data` is added from `Kibana Integrations` and used for `product`, `category`, `search` and `order` functionalities.
+
+`iyipay-java` API client developed by `iyzico` is integrated and used for the project at the `payment` service.
 
 `Reference`: https://github.com/iyzico/iyzipay-java
 
@@ -26,8 +26,6 @@ Software architectures and principles:
 - `Microservices`
 - `API gateway`
 - `Distributed systems`
-- `OOP`
-- `SOLID`
 - `Domain driven design`
 - `Rich domain model`
 - `Event driven architecture`
